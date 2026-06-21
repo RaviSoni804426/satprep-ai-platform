@@ -29,7 +29,11 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt
 
 # Copy and build frontend
 COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm ci
+RUN cd frontend \
+    && npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm install --no-audit --no-fund --legacy-peer-deps
 COPY frontend/ ./frontend/
 RUN cd frontend && npm run build
 
