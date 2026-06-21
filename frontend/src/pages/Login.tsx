@@ -25,9 +25,19 @@ const Login: React.FC = () => {
     dispatch(setLoading(true));
     dispatch(setError(null));
     try {
-      await api.auth.register({ email, password, role, full_name: fullName });
-      setView("otp");
-      setSuccessMsg("An OTP code has been sent to your email. Check console logs if in local development!");
+      const data = await api.auth.register({ email, password, role, full_name: fullName });
+      // Store credentials directly on successful registration
+      const userProfile = await api.users.getMe();
+      dispatch(setCredentials({ user: userProfile, access_token: data.access_token }));
+      
+      // Redirect to correct dashboard based on role
+      if (userProfile.role === "student") {
+        navigate("/dashboard");
+      } else if (userProfile.role === "counsellor") {
+        navigate("/counsellor");
+      } else {
+        navigate("/admin");
+      }
     } catch (err: any) {
       dispatch(setError(err.message || "Registration failed"));
     } finally {

@@ -8,16 +8,28 @@ from typing import Dict, Any, Optional
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(data: UserRegister, db: Session = Depends(get_db)):
-    success, message, user_id = AuthService.register_user(
+@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+def register(data: UserRegister, response: Response, db: Session = Depends(get_db)):
+    success, message, user = AuthService.register_user(
         db, data.email, data.password, data.role, data.full_name
     )
     if not success:
         if message == "EMAIL_EXISTS":
             raise HTTPException(status_code=400, detail="EMAIL_EXISTS")
         raise HTTPException(status_code=422, detail="VALIDATION_ERROR")
-    return {"message": "OTP sent to email", "user_id": user_id}
+        
+    tokens = AuthService.generate_auth_tokens(user)
+    
+    # Store refresh token in HttpOnly cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens["refresh_token"],
+        httponly=True,
+        max_age=7 * 24 * 3600,
+        samesite="lax",
+        secure=False
+    )
+    return tokens
 
 @router.post("/otp/verify", response_model=Token)
 def verify_otp(data: OTPVerify, response: Response, db: Session = Depends(get_db)):
@@ -54,11 +66,10 @@ def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
     elif status_msg == "ACCOUNT_INACTIVE":
         raise HTTPException(status_code=403, detail="ACCOUNT_INACTIVE")
         
-    # Standard email login requires OTP verification first
-    # For a smoother local/demo flow, if is_verified is False, send OTP and raise 401 requiring OTP verify
-    if not user.is_verified:
-        AuthService.generate_otp(user.email)
-        raise HTTPException(status_code=401, detail="OTP_REQUIRED")
+    # Standard email login OTP verification has been removed as per user request
+    # if not user.is_verified:
+    #     AuthService.generate_otp(user.email)
+    #     raise HTTPException(status_code=401, detail="OTP_REQUIRED")
         
     tokens = AuthService.generate_auth_tokens(user)
     response.set_cookie(

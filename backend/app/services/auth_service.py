@@ -52,7 +52,7 @@ class AuthService:
         return False
 
     @staticmethod
-    def register_user(db: Session, email: str, password: str, role: str, full_name: Optional[str] = None) -> Tuple[bool, str, Optional[str]]:
+    def register_user(db: Session, email: str, password: str, role: str, full_name: Optional[str] = None) -> Tuple[bool, str, Optional[User]]:
         existing = UserRepository.get_by_email(db, email)
         if existing:
             return False, "EMAIL_EXISTS", None
@@ -60,13 +60,14 @@ class AuthService:
         pass_hash = get_password_hash(password)
         user = UserRepository.create_user(db, email, pass_hash, role, full_name)
         
-        # Send OTP
-        otp = AuthService.generate_otp(email)
+        # Auto-verify the user to remove OTP verification
+        user.is_verified = True
+        db.commit()
         
         # Log event
         EventRepository.log_event(db, "user.registered", user.id, properties={"role": role, "method": "email"})
         
-        return True, "OTP_SENT", user.id
+        return True, "SUCCESS", user
 
     @staticmethod
     def login_with_password(db: Session, email: str, password: str) -> Tuple[Optional[User], str]:
