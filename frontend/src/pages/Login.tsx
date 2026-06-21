@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { setCredentials, setLoading, setError } from "../store/authSlice";
+import { setCredentials, setToken, setLoading, setError } from "../store/authSlice";
 import { RootState } from "../store";
 import { api } from "../services/api";
 import { KeyRound, Mail, User as UserIcon, Eye, EyeOff, Loader2, BookOpen } from "lucide-react";
@@ -26,7 +26,8 @@ const Login: React.FC = () => {
     dispatch(setError(null));
     try {
       const data = await api.auth.register({ email, password, role, full_name: fullName });
-      // Store credentials directly on successful registration
+      // Dispatch token first so subsequent requests (like getMe) include Authorization header
+      dispatch(setToken(data.access_token));
       const userProfile = await api.users.getMe();
       dispatch(setCredentials({ user: userProfile, access_token: data.access_token }));
       
@@ -51,9 +52,9 @@ const Login: React.FC = () => {
     dispatch(setError(null));
     try {
       const data = await api.auth.verifyOtp({ email, otp });
-      // OTP verified successfully, fetch profile to retrieve full name
+      // Dispatch token first so subsequent requests (like getMe) include Authorization header
+      dispatch(setToken(data.access_token));
       const userProfile = await api.users.getMe();
-      // Store credentials in Redux
       dispatch(setCredentials({ user: userProfile, access_token: data.access_token }));
       
       // Redirect to dashboard based on role
@@ -77,6 +78,8 @@ const Login: React.FC = () => {
     dispatch(setError(null));
     try {
       const data = await api.auth.login({ email, password });
+      // Dispatch token first so subsequent requests (like getMe) include Authorization header
+      dispatch(setToken(data.access_token));
       const userProfile = await api.users.getMe();
       dispatch(setCredentials({ user: userProfile, access_token: data.access_token }));
       
@@ -107,7 +110,8 @@ const Login: React.FC = () => {
       const mockGoogleCredential = `${email || "student"}@example.com`;
       const data = await api.auth.google(mockGoogleCredential);
       
-      // Store credentials
+      // Dispatch token first so subsequent requests (like getMe) include Authorization header
+      dispatch(setToken(data.access_token));
       const userProfile = await api.users.getMe();
       dispatch(setCredentials({ user: userProfile, access_token: data.access_token }));
       
