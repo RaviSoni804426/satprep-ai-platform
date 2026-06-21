@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, ArrowRight, RotateCcw } from "lucide-react";
+import { X, RotateCcw } from "lucide-react";
 
 interface CalculatorProps {
   isOpen: boolean;

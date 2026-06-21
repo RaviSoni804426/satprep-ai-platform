@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { setCredentials, setLoading, setError } from "../store/authSlice";
 import { RootState } from "../store";
 import { api } from "../services/api";
-import { KeyRound, Mail, User as UserIcon, Eye, EyeOff, Loader2, Sparkles, BookOpen } from "lucide-react";
+import { KeyRound, Mail, User as UserIcon, Eye, EyeOff, Loader2, BookOpen } from "lucide-react";
 
 const Login: React.FC = () => {
   const [view, setView] = useState<"login" | "register" | "otp">("login");

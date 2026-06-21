@@ -4,7 +4,7 @@ import { api } from "../services/api";
 import Timer from "../components/Timer";
 import Calculator from "../components/Calculator";
 import FormulaSheet from "../components/FormulaSheet";
-import { ChevronLeft, ChevronRight, Flag, Calculator as CalcIcon, FileSpreadsheet, Loader2, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag, Calculator as CalcIcon, FileSpreadsheet, Loader2 } from "lucide-react";
 
 const TestPlayer: React.FC = () => {
   const { session_id } = useParams<{ session_id: string }>();
@@ -19,16 +19,16 @@ const TestPlayer: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Answers & Flags maps
-  const [answers, setAnswers] = useState<Dict<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [flagged, setFlagged] = useState<string[]>([]);
   
   // Modals state
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isFormulaOpen, setIsFormulaOpen] = useState(false);
-  const [isConfirmSubmitOpen, setIsConfirmSubmitOpen] = useState(false);
   
   // Highlight selections (Reading only)
   const [highlights, setHighlights] = useState<string[]>([]);
+
 
   const autoSaveIntervalRef = useRef<any>(null);
   const answersRef = useRef(answers);
@@ -136,6 +136,22 @@ const TestPlayer: React.FC = () => {
 
   const clearHighlights = () => {
     setHighlights([]);
+  };
+
+  const renderTextWithHighlights = (text: string) => {
+    if (!text) return "";
+    let highlighted = text;
+    highlights.forEach(phrase => {
+      if (!phrase) return;
+      try {
+        const escaped = phrase.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regex = new RegExp(`(${escaped})`, 'gi');
+        highlighted = highlighted.replace(regex, '<mark class="bg-yellow-200 text-gray-900 px-0.5 rounded">$1</mark>');
+      } catch (err) {
+        // ignore
+      }
+    });
+    return highlighted;
   };
 
   const handleSubmitModule = async (force = false) => {
@@ -251,9 +267,15 @@ const TestPlayer: React.FC = () => {
                   className="font-passage text-gray-800 text-base leading-relaxed select-text space-y-4"
                 >
                   {/* Process passage text to highlight */}
-                  <p>
-                    {currentQuestion.body.split("\n\n")[0] || currentQuestion.body}
-                  </p>
+                  {highlights.length > 0 ? (
+                    <p dangerouslySetInnerHTML={{
+                      __html: renderTextWithHighlights(currentQuestion.body.split("\n\n")[0] || currentQuestion.body)
+                    }} />
+                  ) : (
+                    <p>
+                      {currentQuestion.body.split("\n\n")[0] || currentQuestion.body}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="mt-4 text-xs text-gray-400">

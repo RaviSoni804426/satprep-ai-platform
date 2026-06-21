@@ -26,55 +26,55 @@ const FormulaSheet: React.FC<FormulaSheetProps> = ({ isOpen, onClose }) => {
             {/* Area Formulas */}
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <h3 className="font-semibold text-primary mb-3 text-sm uppercase tracking-wider">Area & Circumference</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li><span className="font-medium">Circle:</span> \(A = \pi r^2\), \(C = 2\pi r\)</li>
-                <li><span className="font-medium">Rectangle:</span> \(A = \ell w\)</li>
-                <li><span className="font-medium">Triangle:</span> \(A = \frac{1}{2}bh\)</li>
-                <li><span className="font-medium">Trapezoid:</span> \(A = \frac{1}{2}(b_1 + b_2)h\)</li>
+              <ul className="space-y-2 text-sm text-gray-700 font-mono">
+                <li><span className="font-sans font-medium text-gray-800">Circle:</span> A = πr², C = 2πr</li>
+                <li><span className="font-sans font-medium text-gray-800">Rectangle:</span> A = lw</li>
+                <li><span className="font-sans font-medium text-gray-800">Triangle:</span> A = ½bh</li>
+                <li><span className="font-sans font-medium text-gray-800">Trapezoid:</span> A = ½(b₁ + b₂)h</li>
               </ul>
             </div>
 
             {/* Volume Formulas */}
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <h3 className="font-semibold text-primary mb-3 text-sm uppercase tracking-wider">Volume</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li><span className="font-medium">Rectangular Prism:</span> \(V = \ell w h\)</li>
-                <li><span className="font-medium">Cylinder:</span> \(V = \pi r^2 h\)</li>
-                <li><span className="font-medium">Sphere:</span> \(V = \frac{4}{3}\pi r^3\)</li>
-                <li><span className="font-medium">Cone:</span> \(V = \frac{1}{3}\pi r^2 h\)</li>
-                <li><span className="font-medium">Pyramid:</span> \(V = \frac{1}{3}\ell w h\)</li>
+              <ul className="space-y-2 text-sm text-gray-700 font-mono">
+                <li><span className="font-sans font-medium text-gray-800">Rectangular Prism:</span> V = lwh</li>
+                <li><span className="font-sans font-medium text-gray-800">Cylinder:</span> V = πr²h</li>
+                <li><span className="font-sans font-medium text-gray-800">Sphere:</span> V = ⁴/₃πr³</li>
+                <li><span className="font-sans font-medium text-gray-800">Cone:</span> V = ⅓πr²h</li>
+                <li><span className="font-sans font-medium text-gray-800">Pyramid:</span> V = ⅓lwh</li>
               </ul>
             </div>
 
             {/* Right Triangle Trigonometry */}
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <h3 className="font-semibold text-primary mb-3 text-sm uppercase tracking-wider">Right Triangles</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li><span className="font-medium">Pythagorean Theorem:</span> \(a^2 + b^2 = c^2\)</li>
-                <li><span className="font-medium">Trigonometric Ratios:</span></li>
-                <li className="pl-4">\(\sin \theta = \frac{\text{Opposite}}{\text{Hypotenuse}}\)</li>
-                <li className="pl-4">\(\cos \theta = \frac{\text{Adjacent}}{\text{Hypotenuse}}\)</li>
-                <li className="pl-4">\(\tan \theta = \frac{\text{Opposite}}{\text{Adjacent}}\)</li>
+              <ul className="space-y-2 text-sm text-gray-700 font-mono">
+                <li><span className="font-sans font-medium text-gray-800">Pythagorean Theorem:</span> a² + b² = c²</li>
+                <li><span className="font-sans font-medium text-gray-800">Trigonometric Ratios:</span></li>
+                <li className="pl-4">sin θ = Opposite / Hypotenuse</li>
+                <li className="pl-4">cos θ = Adjacent / Hypotenuse</li>
+                <li className="pl-4">tan θ = Opposite / Adjacent</li>
               </ul>
             </div>
 
             {/* Circle Properties */}
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <h3 className="font-semibold text-primary mb-3 text-sm uppercase tracking-wider">Special Rules</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li><span className="font-medium">Sum of Angles (Triangle):</span> \(180^\circ\)</li>
-                <li><span className="font-medium">Sum of Angles (Circle):</span> \(360^\circ\) or \(2\pi\) radians</li>
-                <li><span className="font-medium">Arc Length:</span> \(s = r\theta\) (\(\theta\) in radians)</li>
-                <li><span className="font-medium">Sector Area:</span> \(A = \frac{1}{2}r^2\theta\)</li>
+              <ul className="space-y-2 text-sm text-gray-700 font-mono">
+                <li><span className="font-sans font-medium text-gray-800">Sum of Angles (Triangle):</span> 180°</li>
+                <li><span className="font-sans font-medium text-gray-800">Sum of Angles (Circle):</span> 360° or 2π radians</li>
+                <li><span className="font-sans font-medium text-gray-800">Arc Length:</span> s = rθ (θ in rad)</li>
+                <li><span className="font-sans font-medium text-gray-800">Sector Area:</span> A = ½r²θ</li>
               </ul>
             </div>
           </div>
           
           <div className="p-4 border border-blue-100 bg-blue-50 rounded-xl">
             <h4 className="font-semibold text-blue-800 text-sm mb-1">Special Right Triangles</h4>
-            <p className="text-xs text-blue-700">
-              • 30°-60°-90° Triangle: Sides are in the ratio \(1 : \sqrt{3} : 2\).<br/>
-              • 45°-45°-90° Triangle: Sides are in the ratio \(1 : 1 : \sqrt{2}\).
+            <p className="text-xs text-blue-700 leading-relaxed font-mono">
+              • 30°-60°-90° Triangle: Side ratio is 1 : √3 : 2.<br/>
+              • 45°-45°-90° Triangle: Side ratio is 1 : 1 : √2.
             </p>
           </div>
         </div>

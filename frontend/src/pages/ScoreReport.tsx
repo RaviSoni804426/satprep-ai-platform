@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { BookOpen, Trophy, Sparkles, AlertTriangle, ArrowRight, Home, FileText, Loader2 } from "lucide-react";
+import { BookOpen, Trophy, Home, FileText, Loader2 } from "lucide-react";
 
 const ScoreReport: React.FC = () => {
   const { session_id } = useParams<{ session_id: string }>();
@@ -46,7 +46,9 @@ const ScoreReport: React.FC = () => {
       }, 2000); // Poll every 2 seconds
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [pollCount, loading]);
+
 
   if (loading) {
     return (

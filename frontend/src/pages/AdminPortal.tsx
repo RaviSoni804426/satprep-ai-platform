@@ -16,7 +16,6 @@ const AdminPortal: React.FC = () => {
 
   // Users tab state
   const [usersList, setUsersList] = useState<any[]>([]);
-  const [usersTotal, setUsersTotal] = useState(0);
   const [usersSearch, setUsersSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
@@ -47,7 +46,6 @@ const AdminPortal: React.FC = () => {
       if (activeTab === "users") {
         const data = await api.users.list(roleFilter || undefined, usersSearch || undefined);
         setUsersList(data.data || []);
-        setUsersTotal(data.total || 0);
       } else if (activeTab === "questions") {
         const data = await api.admin.listQuestions();
         setQuestionsList(data || []);
