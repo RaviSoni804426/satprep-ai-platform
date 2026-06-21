@@ -6,6 +6,7 @@ from app.core.security import get_password_hash, verify_password, create_access_
 from app.core.config import settings
 import redis
 from typing import Optional, Tuple, Dict, Any
+from app.models.models import User
 
 logger = logging.getLogger(__name__)
 

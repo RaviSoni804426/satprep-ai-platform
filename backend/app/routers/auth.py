@@ -4,7 +4,7 @@ from app.core.database import get_db
 from app.schemas.schemas import UserRegister, UserLogin, OTPVerify, Token, TokenRefreshRequest, TokenRefreshResponse
 from app.services.auth_service import AuthService
 from app.repository.db_repo import UserRepository
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

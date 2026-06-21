@@ -11,7 +11,7 @@ from app.main import app
 
 
 # Setup test DB (SQLite in-memory)
-DATABASE_URL = "sqlite:///./test.db"
+DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

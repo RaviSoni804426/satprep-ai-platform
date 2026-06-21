@@ -4,7 +4,6 @@ from app.models.models import TestSession, TestScore, SessionAnswer, Question, T
 from app.services.recommendation_service import RecommendationService
 from app.repository.db_repo import QuestionRepository
 from datetime import datetime, timedelta
-import numpy as np
 
 class AnalyticsService:
     @staticmethod
@@ -31,7 +30,7 @@ class AnalyticsService:
         scores = db.query(TestScore).filter(TestScore.session_id.in_(session_ids)).order_by(TestScore.calculated_at).all()
         
         total_scores = [s.total_score for s in scores]
-        avg_score = int(np.mean(total_scores)) if total_scores else 0
+        avg_score = int(sum(total_scores) / len(total_scores)) if total_scores else 0
         best_score = max(total_scores) if total_scores else 0
         score_trend = total_scores
         
@@ -58,7 +57,7 @@ class AnalyticsService:
                 
         # Average time per question
         times = [a.time_taken_seconds for a in answers if a.time_taken_seconds is not None]
-        avg_time = int(np.mean(times)) if times else 60
+        avg_time = int(sum(times) / len(times)) if times else 60
         
         return {
             "total_mocks": total_mocks,

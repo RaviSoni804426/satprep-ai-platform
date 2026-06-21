@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.repository.db_repo import SessionRepository, ScoreRepository, QuestionRepository
 from app.models.models import TestScore, SessionAnswer, Question, Topic
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 # Digital SAT curve anchor points
 READING_HARD_CURVE = {
