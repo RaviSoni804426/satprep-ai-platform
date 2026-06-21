@@ -1,8 +1,18 @@
 #!/bin/bash
 set -e
 
+# Dynamically add PostgreSQL bin to PATH
+for pg_dir in /usr/lib/postgresql/*/bin; do
+    if [ -d "$pg_dir" ]; then
+        echo "Adding $pg_dir to PATH"
+        export PATH="$pg_dir:$PATH"
+        break
+    fi
+done
+
 echo "Starting local Redis server..."
 redis-server --daemonize yes --dir /app/redis_data
+
 
 echo "Initializing local PostgreSQL database..."
 if [ ! -d "/app/pg_data/PG_VERSION" ]; then
