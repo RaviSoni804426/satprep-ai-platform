@@ -45,7 +45,8 @@ async def rate_limiting_middleware(request: Request, call_next):
     # For local/testing we pass through cleanly, but logging can be added
     response = await call_next(request)
     # Add Security headers as required by security docs
-    response.headers["X-Frame-Options"] = "DENY"
+    # Note: Commented out X-Frame-Options DENY to allow framing in Hugging Face Spaces.
+    # response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
