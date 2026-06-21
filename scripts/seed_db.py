@@ -10,6 +10,8 @@ from app.core.security import get_password_hash
 from app.models.models import User, StudentProfile, Topic, Question, Test, TestModule, ModuleQuestion
 
 def seed():
+    print("Initializing database tables...")
+    Base.metadata.create_all(bind=engine)
     print("Seeding database...")
     db = SessionLocal()
     
