@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from app.repository.db_repo import RecommendationRepository, SessionRepository, QuestionRepository
-from app.models.models import Recommendation, SessionAnswer, Question, Topic, User, StudentProfile
+from app.models.models import Recommendation, SessionAnswer, Question, Topic, User, StudentProfile, TestScore
 from datetime import datetime, timedelta, date
 import random
 
