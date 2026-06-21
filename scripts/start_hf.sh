@@ -20,6 +20,8 @@ if [ ! -d "/app/pg_data/PG_VERSION" ]; then
 fi
 
 echo "Starting local PostgreSQL server..."
+# Clean up stale postmaster.pid lock file if it exists after crashes
+rm -f /app/pg_data/postmaster.pid
 pg_ctl -D /app/pg_data -o "-k /tmp/postgres_run" -l /tmp/postgres.log start
 
 # Wait for Postgres to start
