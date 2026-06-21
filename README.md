@@ -1,4 +1,15 @@
+---
+title: SATPrep AI Mock Test Portal
+emoji: 📚
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # SATPrep AI – Adaptive Mock Test Portal for the Digital SAT
+
 
 SATPrep AI is a cloud-native, enterprise-grade mock test portal designed to replicate the official College Board Digital SAT experience. Featuring real-time adaptive module routing, precise Item Response Theory (IRT) based score scaling, AI-driven study recommendations, and a dedicated counsellor dashboard, the platform is built to scale from 4,000 to over 50,000 active students.
 
