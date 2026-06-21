@@ -1,6 +1,7 @@
 import sys
 import os
 import uuid
+from sqlalchemy import and_
 
 # Add the backend directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../backend")))
@@ -143,7 +144,6 @@ def seed():
 
     # 5. Populate Questions and associate to modules
     # Helper to generate questions in bulk
-    from sqlalchemy import and_
     
     def generate_and_link_questions(module_obj, count, subject, diff):
         existing_links = db.query(ModuleQuestion).filter(ModuleQuestion.module_id == module_obj.id).count()
