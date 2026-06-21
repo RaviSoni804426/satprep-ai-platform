@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbars and focus rings for premium look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.premium-card {
+  @apply bg-white rounded-2xl border border-gray-100 shadow-sm transition-all duration-200 hover:shadow-md;
+}
+
+.premium-btn {
+  @apply px-4 py-2.5 bg-primary hover:bg-primary-dark text-white font-medium rounded-xl shadow-sm transition-colors duration-150 flex items-center justify-center gap-2;
+}
+
+.premium-btn-secondary {
+  @apply px-4 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-xl shadow-sm transition-colors duration-150 flex items-center justify-center gap-2;
+}
