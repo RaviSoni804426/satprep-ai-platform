@@ -1,7 +1,6 @@
 import sys
 import os
 import uuid
-from sqlalchemy import and_
 
 # Add the backend directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../backend")))
@@ -121,11 +120,11 @@ def seed():
     
     modules = {}
     for m_conf in module_configs:
-        m = db.query(TestModule).filter(and_(
+        m = db.query(TestModule).filter(
             TestModule.test_id == test.id,
             TestModule.module_no == m_conf["module_no"],
             TestModule.difficulty == m_conf["difficulty"]
-        )).first()
+        ).first()
         if not m:
             m = TestModule(
                 test_id=test.id,
