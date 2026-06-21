@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -50,6 +50,15 @@ async def rate_limiting_middleware(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    
+    # Explicitly configure Content-Security-Policy to allow framing in Hugging Face Spaces
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'self' https://huggingface.co https://*.hf.space;"
+    
+    # Force cache-busting to prevent browser caching of old security headers (like X-Frame-Options: DENY)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
     return response
 
 # Include V1 Routers
@@ -76,12 +85,19 @@ if os.path.exists(frontend_dist_path):
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
         
-    # Catch-all route to serve index.html for client-side routing
+    # Catch-all route to serve index.html or other static files from frontend/dist
     @app.get("/{catchall:path}")
     def serve_frontend(catchall: str):
         # Allow API docs and openapi JSON to pass through
         if catchall.startswith("docs") or catchall.startswith("redoc") or catchall.startswith("openapi.json"):
             raise HTTPException(status_code=404)
+        
+        # Check if the requested file exists in frontend_dist_path (e.g. vite.svg, favicon.ico)
+        if catchall:
+            file_path = os.path.join(frontend_dist_path, catchall)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return FileResponse(file_path)
+                
         index_file = os.path.join(frontend_dist_path, "index.html")
         if os.path.exists(index_file):
             return FileResponse(index_file)
