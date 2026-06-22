@@ -7,7 +7,7 @@ import FormulaSheet from "../components/FormulaSheet";
 import { 
   ChevronLeft, ChevronRight, Flag, Calculator as CalcIcon, FileSpreadsheet, 
   Loader2, CheckCircle2, Shield, Wifi, Monitor, HelpCircle, AlertCircle, Play, 
-  Check, Info, Clock, RefreshCw, BarChart2
+  Info, Clock, RefreshCw, BarChart2
 } from "lucide-react";
 
 const TestPlayer: React.FC = () => {
@@ -19,14 +19,12 @@ const TestPlayer: React.FC = () => {
   // Test starting state
   const [isDiagnosticDone, setIsDiagnosticDone] = useState(false);
   const [internetStatus, setInternetStatus] = useState("checking");
-  const [browserCheck, setBrowserCheck] = useState(true);
   const [deviceCheck, setDeviceCheck] = useState("checking");
   const [latencyCheck, setLatencyCheck] = useState<number | null>(null);
 
   // Core state
   const [currentModuleNo, setCurrentModuleNo] = useState(1);
   const [subject, setSubject] = useState("reading");
-  const [difficulty, setDifficulty] = useState("standard");
   const [timeRemaining, setTimeRemaining] = useState(1920);
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -219,7 +217,6 @@ const TestPlayer: React.FC = () => {
         setFlagged([]);
         setQuestions(data.next_module.questions || []);
         setSubject(data.next_module.subject);
-        setDifficulty(data.next_module.difficulty);
         setCurrentIndex(0);
         setHighlights([]);
       } else {

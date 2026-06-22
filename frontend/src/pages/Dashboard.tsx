@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { logout } from "../store/authSlice";
 import { RootState } from "../store";
 import { api } from "../services/api";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { 
   LogOut, BookOpen, AlertTriangle, Lightbulb, Play, Calendar, Clipboard, 
   Loader2, RefreshCw, Zap, Trophy, Award, Star, Compass, ArrowRight, 
-  MessageSquare, Send, CheckCircle, ChevronRight, PlayCircle, Target, 
-  TrendingUp, Smile, Clock, Brain, User, Sparkles, CheckSquare, Square
+  MessageSquare, Send, CheckCircle, PlayCircle, Target, 
+  TrendingUp, Smile, Brain, Sparkles, CheckSquare
 } from "lucide-react";
 
 const Dashboard: React.FC = () => {
@@ -132,11 +132,6 @@ const Dashboard: React.FC = () => {
     name: `Mock #${idx + 1}`,
     Score: score
   })) || [];
-
-  const accuracyData = [
-    { name: "Reading & Writing", Accuracy: analytics?.accuracy.reading || 0 },
-    { name: "Math", Accuracy: analytics?.accuracy.math || 0 }
-  ];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
