@@ -12,6 +12,23 @@ from app.models.models import User, StudentProfile, Topic, Question, Test, TestM
 def seed():
     print("Initializing database tables...")
     Base.metadata.create_all(bind=engine)
+    
+    # Run migration queries to add new columns if they do not exist
+    from sqlalchemy import text
+    print("Migrating database schema for user approvals...")
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) NOT NULL DEFAULT 'Pending'"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by VARCHAR(36)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_date TIMESTAMP"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rejection_reason TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_notes TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip VARCHAR(50)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_user_agent VARCHAR(500)"))
+        
+        # Ensure default test users are Approved
+        conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
+        conn.commit()
+
     print("Seeding database...")
     db = SessionLocal()
     
@@ -23,7 +40,8 @@ def seed():
             password_hash=get_password_hash("AdminPass123!"),
             role="admin",
             full_name="System Administrator",
-            is_verified=True
+            is_verified=True,
+            approval_status="Approved"
         )
         db.add(admin)
         db.commit()
@@ -37,7 +55,8 @@ def seed():
             password_hash=get_password_hash("CounsellorPass123!"),
             role="counsellor",
             full_name="Sarah Jenkins",
-            is_verified=True
+            is_verified=True,
+            approval_status="Approved"
         )
         db.add(counsellor)
         db.commit()
@@ -51,7 +70,8 @@ def seed():
             password_hash=get_password_hash("StudentPass123!"),
             role="student",
             full_name="Arjun Sharma",
-            is_verified=True
+            is_verified=True,
+            approval_status="Approved"
         )
         db.add(student)
         db.commit()

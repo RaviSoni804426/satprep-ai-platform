@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { logout } from "../store/authSlice";
 import { RootState } from "../store";
 import { api } from "../services/api";
-import { LogOut, BookOpen, Users, HelpCircle, BarChart3, Database, FileUp, FileDown, PlusCircle, CheckCircle, Loader2 } from "lucide-react";
+import { LogOut, BookOpen, Users, HelpCircle, BarChart3, Database, FileUp, FileDown, PlusCircle, CheckCircle, Loader2, XCircle, Lock, Unlock, Eye, ShieldAlert } from "lucide-react";
 
 const AdminPortal: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -18,6 +18,14 @@ const AdminPortal: React.FC = () => {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [usersSearch, setUsersSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  
+  // User approval dashboard workflow states
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState<"approve" | "reject" | "suspend" | "reactivate" | null>(null);
+  const [actionNotes, setActionNotes] = useState("");
+  const [actionReason, setActionReason] = useState("");
 
   // Questions tab state
   const [questionsList, setQuestionsList] = useState<any[]>([]);
@@ -44,7 +52,7 @@ const AdminPortal: React.FC = () => {
     setLoading(true);
     try {
       if (activeTab === "users") {
-        const data = await api.users.list(roleFilter || undefined, usersSearch || undefined);
+        const data = await api.users.list(roleFilter || undefined, usersSearch || undefined, statusFilter || undefined);
         setUsersList(data.data || []);
       } else if (activeTab === "questions") {
         const data = await api.admin.listQuestions();
@@ -62,7 +70,50 @@ const AdminPortal: React.FC = () => {
 
   useEffect(() => {
     loadTabContent();
-  }, [activeTab, roleFilter, usersSearch]);
+  }, [activeTab, roleFilter, usersSearch, statusFilter]);
+
+  // Approval Dashboard Operations
+  const handleUserActionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !showActionModal) return;
+    
+    setLoading(true);
+    try {
+      if (showActionModal === "approve") {
+        await api.admin.approveUser(selectedUser.id, actionNotes || undefined);
+      } else if (showActionModal === "reject") {
+        await api.admin.rejectUser(selectedUser.id, actionReason || undefined, actionNotes || undefined);
+      } else if (showActionModal === "suspend") {
+        await api.admin.suspendUser(selectedUser.id, actionNotes || undefined);
+      } else if (showActionModal === "reactivate") {
+        await api.admin.reactivateUser(selectedUser.id, actionNotes || undefined);
+      }
+      
+      setShowActionModal(null);
+      setActionNotes("");
+      setActionReason("");
+      setSelectedUser(null);
+      loadTabContent();
+      alert("Action completed successfully!");
+    } catch (err: any) {
+      alert(err.message || "Action failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      setLoading(true);
+      await api.admin.updateUserRole(userId, newRole);
+      loadTabContent();
+      alert("User role updated successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to update role");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleApproveQuestion = async (qId: string) => {
     try {
@@ -244,56 +295,149 @@ const AdminPortal: React.FC = () => {
           {activeTab === "users" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <h2 className="text-2xl font-extrabold text-gray-900">User Directory</h2>
+                <h2 className="text-2xl font-extrabold text-gray-900">User Approval Dashboard</h2>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none focus:border-primary shadow-sm"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="Pending">Pending Approval</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Suspended">Suspended</option>
+                  </select>
                   <select
                     value={roleFilter}
                     onChange={e => setRoleFilter(e.target.value)}
-                    className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none"
+                    className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none focus:border-primary shadow-sm"
                   >
                     <option value="">All Roles</option>
-                    <option value="student">Students</option>
-                    <option value="counsellor">Counsellors</option>
-                    <option value="author">Authors</option>
-                    <option value="admin">Admins</option>
+                    <option value="student">Student</option>
+                    <option value="counsellor">Counsellor</option>
+                    <option value="author">Content Author</option>
+                    <option value="admin">Administrator</option>
                   </select>
                   <input
                     type="text"
                     value={usersSearch}
                     onChange={e => setUsersSearch(e.target.value)}
                     placeholder="Search name/email..."
-                    className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-primary w-40"
+                    className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-primary w-44 shadow-sm"
                   />
                 </div>
               </div>
 
-              <div className="premium-card bg-white overflow-hidden border border-gray-100 shadow-sm">
+              <div className="premium-card bg-white overflow-hidden border border-gray-150 shadow-sm rounded-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      <tr className="bg-slate-50 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
                         <th className="px-6 py-4">Full Name</th>
                         <th className="px-6 py-4">Email</th>
-                        <th className="px-6 py-4">Role</th>
-                        <th className="px-6 py-4 text-center">Status</th>
+                        <th className="px-6 py-4">Assigned Role</th>
+                        <th className="px-6 py-4 text-center">Approval Status</th>
+                        <th className="px-6 py-4 text-center">Quick Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-                      {usersList.map(u => (
-                        <tr key={u.id}>
-                          <td className="px-6 py-4 font-semibold text-gray-900">{u.full_name || "—"}</td>
-                          <td className="px-6 py-4 font-mono text-xs">{u.email}</td>
-                          <td className="px-6 py-4 capitalize font-semibold text-gray-600">{u.role}</td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              u.is_active ? "bg-green-50 text-success border border-green-200" : "bg-red-50 text-danger border border-red-200"
-                            }`}>
-                              {u.is_active ? "Active" : "Inactive"}
-                            </span>
+                      {usersList.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                            No registration requests found matching current filters.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        usersList.map(u => (
+                          <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-gray-900">{u.full_name || "—"}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col">
+                                <span className="font-mono text-xs text-gray-800">{u.email}</span>
+                                {u.created_at && (
+                                  <span className="text-[10px] text-gray-400 mt-0.5">
+                                    Registered: {new Date(u.created_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <select
+                                value={u.role}
+                                onChange={e => handleRoleChange(u.id, e.target.value)}
+                                className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-700 focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                              >
+                                <option value="student">Student</option>
+                                <option value="counsellor">Counsellor</option>
+                                <option value="author">Content Author</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
+                                u.approval_status === "Approved" ? "bg-green-50 text-success border-green-200" :
+                                u.approval_status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200 animate-pulse" :
+                                u.approval_status === "Rejected" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                "bg-slate-100 text-slate-700 border-slate-300"
+                              }`}>
+                                {u.approval_status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex justify-center items-center gap-2">
+                                <button
+                                  onClick={() => { setSelectedUser(u); setShowDetailsModal(true); }}
+                                  className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                  title="View Details"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                
+                                {u.approval_status === "Pending" && (
+                                  <>
+                                    <button
+                                      onClick={() => { setSelectedUser(u); setShowActionModal("approve"); }}
+                                      className="p-1.5 bg-green-50 text-success hover:bg-green-100 rounded-lg transition-colors"
+                                      title="Approve User"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => { setSelectedUser(u); setShowActionModal("reject"); }}
+                                      className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
+                                      title="Reject User"
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
+                                
+                                {u.approval_status === "Approved" && (
+                                  <button
+                                    onClick={() => { setSelectedUser(u); setShowActionModal("suspend"); }}
+                                    className="p-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors"
+                                    title="Suspend User"
+                                  >
+                                    <Lock className="w-4 h-4" />
+                                  </button>
+                                )}
+                                
+                                {(u.approval_status === "Suspended" || u.approval_status === "Rejected") && (
+                                  <button
+                                    onClick={() => { setSelectedUser(u); setShowActionModal("reactivate"); }}
+                                    className="p-1.5 bg-green-50 text-success hover:bg-green-100 rounded-lg transition-colors"
+                                    title="Reactivate User"
+                                  >
+                                    <Unlock className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -505,6 +649,178 @@ const AdminPortal: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedUser && (
+        <div className="fixed inset-0 bg-slate-900 bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
+            <div className="p-6 bg-slate-50 border-b border-gray-150 flex items-center justify-between">
+              <h3 className="text-lg font-extrabold text-slate-900">User Registration Details</h3>
+              <button
+                onClick={() => { setShowDetailsModal(false); setSelectedUser(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-sm bg-gray-100 p-1.5 rounded-full"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-sm">
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">User ID</span>
+                <span className="col-span-2 font-mono text-xs text-gray-800 break-all">{selectedUser.id}</span>
+              </div>
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Full Name</span>
+                <span className="col-span-2 text-gray-800 font-semibold">{selectedUser.full_name || "—"}</span>
+              </div>
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Email Address</span>
+                <span className="col-span-2 font-mono text-gray-800">{selectedUser.email}</span>
+              </div>
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Assigned Role</span>
+                <span className="col-span-2 capitalize font-semibold text-slate-700">{selectedUser.role}</span>
+              </div>
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Date Registered</span>
+                <span className="col-span-2 text-gray-700">
+                  {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleString() : "—"}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Registration IP</span>
+                <span className="col-span-2 font-mono text-gray-700">{selectedUser.registration_ip || "Not Available"}</span>
+              </div>
+              <div className="grid grid-cols-3 py-2 border-b border-gray-50">
+                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Device Info</span>
+                <span className="col-span-2 text-xs text-gray-500 break-words">{selectedUser.registration_user_agent || "Not Available"}</span>
+              </div>
+              
+              <div className="p-4 bg-slate-50 rounded-2xl space-y-2 mt-4">
+                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Approval Workflow History</h4>
+                
+                <div className="grid grid-cols-3 py-1 border-b border-gray-200 border-opacity-50">
+                  <span className="font-semibold text-gray-500 text-xs">Status</span>
+                  <span className="col-span-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      selectedUser.approval_status === "Approved" ? "bg-green-50 text-success border border-green-200" :
+                      selectedUser.approval_status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                      selectedUser.approval_status === "Rejected" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                      "bg-slate-100 text-slate-700 border-slate-300"
+                    }`}>
+                      {selectedUser.approval_status}
+                    </span>
+                  </span>
+                </div>
+                {selectedUser.approved_by_name && (
+                  <div className="grid grid-cols-3 py-1 border-b border-gray-200 border-opacity-50">
+                    <span className="font-semibold text-gray-500 text-xs">Processed By</span>
+                    <span className="col-span-2 text-xs font-semibold text-gray-700">{selectedUser.approved_by_name}</span>
+                  </div>
+                )}
+                {selectedUser.approval_date && (
+                  <div className="grid grid-cols-3 py-1 border-b border-gray-200 border-opacity-50">
+                    <span className="font-semibold text-gray-500 text-xs">Processed At</span>
+                    <span className="col-span-2 text-xs text-gray-700">{new Date(selectedUser.approval_date).toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedUser.rejection_reason && (
+                  <div className="grid grid-cols-3 py-1 border-b border-gray-200 border-opacity-50 text-rose-700">
+                    <span className="font-semibold text-rose-500 text-xs">Rejection Reason</span>
+                    <span className="col-span-2 text-xs font-medium">{selectedUser.rejection_reason}</span>
+                  </div>
+                )}
+                {selectedUser.approval_notes && (
+                  <div className="grid grid-cols-3 py-1">
+                    <span className="font-semibold text-gray-500 text-xs">Notes</span>
+                    <span className="col-span-2 text-xs text-gray-600 italic break-words">"{selectedUser.approval_notes}"</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-6 bg-slate-50 border-t border-gray-150 flex justify-end">
+              <button
+                onClick={() => { setShowDetailsModal(false); setSelectedUser(null); }}
+                className="px-5 py-2.5 bg-gray-900 hover:bg-black text-white font-bold rounded-xl text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Modals */}
+      {showActionModal && selectedUser && (
+        <div className="fixed inset-0 bg-slate-900 bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleUserActionSubmit} className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100">
+            <div className="p-6 bg-slate-50 border-b border-gray-150 flex items-center gap-2">
+              <ShieldAlert className={`w-5 h-5 ${showActionModal === "reject" ? "text-rose-500" : "text-primary"}`} />
+              <h3 className="text-base font-extrabold text-slate-900 text-left">
+                {showActionModal === "approve" && "Confirm Registration Approval"}
+                {showActionModal === "reject" && "Decline Registration Request"}
+                {showActionModal === "suspend" && "Confirm Account Suspension"}
+                {showActionModal === "reactivate" && "Reactivate User Account"}
+              </h3>
+            </div>
+            
+            <div className="p-6 space-y-4 text-sm text-left">
+              <p className="text-gray-600">
+                Are you sure you want to {showActionModal} the registration request for:
+                <br />
+                <strong className="text-slate-900 font-bold">{selectedUser.full_name || selectedUser.email}</strong> 
+                <span className="text-xs text-gray-500"> ({selectedUser.email})</span>?
+              </p>
+              
+              {showActionModal === "reject" && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Rejection Reason (Required)</label>
+                  <textarea
+                    required
+                    value={actionReason}
+                    onChange={e => setActionReason(e.target.value)}
+                    rows={3}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary focus:bg-white transition-colors"
+                    placeholder="Enter reason for declining the registration..."
+                  />
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Internal Notes (Optional)</label>
+                <textarea
+                  value={actionNotes}
+                  onChange={e => setActionNotes(e.target.value)}
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary focus:bg-white transition-colors"
+                  placeholder="Add details, observations, or rationale..."
+                />
+              </div>
+            </div>
+            
+            <div className="p-6 bg-slate-50 border-t border-gray-150 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowActionModal(null); setActionNotes(""); setActionReason(""); setSelectedUser(null); }}
+                className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`px-4 py-2 text-white font-bold rounded-xl text-xs transition-colors ${
+                  showActionModal === "reject" ? "bg-rose-600 hover:bg-rose-700" :
+                  showActionModal === "suspend" ? "bg-amber-600 hover:bg-amber-700" :
+                  "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

@@ -52,32 +52,61 @@ class AuthService:
         return False
 
     @staticmethod
-    def register_user(db: Session, email: str, password: str, role: str, full_name: Optional[str] = None) -> Tuple[bool, str, Optional[User]]:
+    def register_user(
+        db: Session, 
+        email: str, 
+        password: str, 
+        role: str, 
+        full_name: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Tuple[bool, str, Optional[User]]:
         existing = UserRepository.get_by_email(db, email)
         if existing:
+            # If exists but not verified, allow them to re-trigger OTP
+            if not existing.is_verified:
+                AuthService.generate_otp(email)
+                return True, "OTP_REQUIRED", existing
             return False, "EMAIL_EXISTS", None
             
         pass_hash = get_password_hash(password)
         user = UserRepository.create_user(db, email, pass_hash, role, full_name)
         
-        # Auto-verify the user to remove OTP verification
-        user.is_verified = True
+        user.is_verified = False
+        user.approval_status = "Pending"
+        user.registration_ip = ip_address
+        user.registration_user_agent = user_agent
         db.commit()
+        db.refresh(user)
         
         # Log event
         EventRepository.log_event(db, "user.registered", user.id, properties={"role": role, "method": "email"})
         
-        return True, "SUCCESS", user
+        # Generate verification code
+        AuthService.generate_otp(email)
+        
+        return True, "OTP_REQUIRED", user
 
     @staticmethod
     def login_with_password(db: Session, email: str, password: str) -> Tuple[Optional[User], str]:
         user = UserRepository.get_by_email(db, email)
         if not user:
             return None, "INVALID_CREDENTIALS"
-        if not user.is_active:
-            return None, "ACCOUNT_INACTIVE"
         if not verify_password(password, user.password_hash):
             return None, "INVALID_CREDENTIALS"
+        
+        # Check verified state
+        if not user.is_verified:
+            AuthService.generate_otp(user.email)
+            return user, "OTP_REQUIRED"
+            
+        # Check approval workflow statuses
+        if not user.is_active or user.approval_status == "Suspended":
+            return None, "ACCOUNT_SUSPENDED"
+        if user.approval_status == "Pending":
+            return None, "APPROVAL_PENDING"
+        if user.approval_status == "Rejected":
+            return None, "REGISTRATION_REJECTED"
             
         # Log event
         EventRepository.log_event(db, "user.login", user.id, properties={"method": "email"})
@@ -106,7 +135,7 @@ class AuthService:
             
         user_id = payload["sub"]
         user = UserRepository.get_by_id(db, user_id)
-        if not user or not user.is_active:
+        if not user or not user.is_active or user.approval_status != "Approved":
             return None, "USER_INACTIVE"
             
         # Generate new access token
@@ -116,12 +145,6 @@ class AuthService:
 
     @staticmethod
     def authenticate_google_user(db: Session, token_or_code: str) -> Tuple[Optional[User], str]:
-        # In production, we would call google-auth library:
-        # idinfo = id_token.verify_oauth2_token(token_or_code, requests.Request(), CLIENT_ID)
-        # For this mock/full implementation, we'll verify if it's a valid email representation,
-        # or simulate it with a test identity if credentials are dummy.
-        # This keeps the OAuth endpoints functional for testing!
-        
         email = "google_user@example.com"
         full_name = "Google Student"
         
@@ -136,11 +159,27 @@ class AuthService:
             pass_hash = get_password_hash("GoogleAuth123!SafeSecretPass")
             user = UserRepository.create_user(db, email, pass_hash, "student", full_name)
             user.is_verified = True
+            user.approval_status = "Pending"  # Google users must go through approval workflow
             db.commit()
             
             # Log registration event
             EventRepository.log_event(db, "user.registered", user.id, properties={"role": "student", "method": "google"})
+            
+            # Send notification emails to admin & user
+            from app.services.email_service import EmailService
+            EmailService.send_admin_approval_request_email(user)
+            EmailService.send_user_pending_email(user)
+            
+            return user, "APPROVAL_PENDING"
         
+        # Check approval statuses
+        if not user.is_active or user.approval_status == "Suspended":
+            return None, "ACCOUNT_SUSPENDED"
+        if user.approval_status == "Pending":
+            return None, "APPROVAL_PENDING"
+        if user.approval_status == "Rejected":
+            return None, "REGISTRATION_REJECTED"
+            
         # Log login event
         EventRepository.log_event(db, "user.login", user.id, properties={"method": "google"})
         return user, "SUCCESS"

@@ -21,6 +21,15 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Approval Workflow & Device Logging
+    approval_status = Column(String(50), default="Pending", nullable=False)  # 'Pending', 'Approved', 'Rejected', 'Suspended'
+    approved_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approval_date = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    approval_notes = Column(Text, nullable=True)
+    registration_ip = Column(String(50), nullable=True)
+    registration_user_agent = Column(String(500), nullable=True)
+
     # Relationships
     profile = relationship("StudentProfile", back_populates="user", uselist=False, foreign_keys="StudentProfile.user_id")
     sessions = relationship("TestSession", back_populates="student")

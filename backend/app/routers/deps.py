@@ -30,10 +30,10 @@ def get_current_user(
     user = UserRepository.get_by_id(db, user_id)
     if not user:
         raise credentials_exception
-    if not user.is_active:
+    if not user.is_active or user.approval_status != "Approved":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            detail="User account is inactive or not approved"
         )
         
     return user

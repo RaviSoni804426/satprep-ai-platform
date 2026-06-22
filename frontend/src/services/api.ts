@@ -20,7 +20,7 @@ async function apiFetch(path: string, options: RequestInit = {}) {
     headers
   });
 
-  if (response.status === 401) {
+  if (response.status === 401 && !path.startsWith("/auth/")) {
     store.dispatch(logout());
     throw new Error("UNAUTHORIZED");
   }
@@ -50,10 +50,11 @@ export const api = {
   users: {
     getMe: () => apiFetch("/users/me"),
     updateMe: (body: any) => apiFetch("/users/me", { method: "PATCH", body: JSON.stringify(body) }),
-    list: (role?: string, search?: string, page = 1, limit = 50) => {
+    list: (role?: string, search?: string, status?: string, page = 1, limit = 50) => {
       let url = `/users?page=${page}&limit=${limit}`;
       if (role) url += `&role=${role}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (status) url += `&status=${status}`;
       return apiFetch(url);
     }
   },
@@ -89,7 +90,12 @@ export const api = {
       formData.append("file", file);
       return apiFetch("/admin/questions/import", { method: "POST", body: formData });
     },
-    exportUrl: (type: string) => `/v1/admin/reports/export?type=${type}`
+    exportUrl: (type: string) => `/v1/admin/reports/export?type=${type}`,
+    approveUser: (userId: string, notes?: string) => apiFetch(`/admin/users/${userId}/approve`, { method: "POST", body: JSON.stringify({ notes }) }),
+    rejectUser: (userId: string, reason?: string, notes?: string) => apiFetch(`/admin/users/${userId}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason, notes }) }),
+    suspendUser: (userId: string, notes?: string) => apiFetch(`/admin/users/${userId}/suspend`, { method: "POST", body: JSON.stringify({ notes }) }),
+    reactivateUser: (userId: string, notes?: string) => apiFetch(`/admin/users/${userId}/reactivate`, { method: "POST", body: JSON.stringify({ notes }) }),
+    updateUserRole: (userId: string, role: string) => apiFetch(`/admin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) })
   },
   counsellor: {
     students: () => apiFetch("/counsellor/students")

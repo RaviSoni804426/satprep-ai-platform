@@ -4,8 +4,9 @@ from app.core.database import get_db
 from app.schemas.schemas import QuestionOut, QuestionCreate, RosterStudentOut
 from app.routers.deps import require_role
 from app.models.models import User, Question, Topic, StudentProfile, TestScore, TestSession
-from app.repository.db_repo import QuestionRepository
+from app.repository.db_repo import QuestionRepository, UserRepository
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
 import csv
 import io
 from datetime import datetime
@@ -186,3 +187,129 @@ def get_counsellor_students(
         })
         
     return data
+
+# --- Admin Approval Dashboard Operations ---
+
+class UserApproveRequest(BaseModel):
+    notes: Optional[str] = None
+
+class UserRejectRequest(BaseModel):
+    rejection_reason: Optional[str] = None
+    notes: Optional[str] = None
+
+class UserSuspendRequest(BaseModel):
+    notes: Optional[str] = None
+
+class UserReactivateRequest(BaseModel):
+    notes: Optional[str] = None
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str = Field(..., pattern="^(student|counsellor|author|admin)$")
+
+@router.post("/admin/users/{user_id}/approve")
+def approve_user(
+    user_id: str,
+    data: UserApproveRequest,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.approval_status = "Approved"
+    user.is_active = True
+    user.approved_by = current_user.id
+    user.approval_date = datetime.utcnow()
+    user.approval_notes = data.notes
+    db.commit()
+    
+    # Send welcome email
+    from app.services.email_service import EmailService
+    EmailService.send_user_approved_email(user)
+    
+    return {"message": "User approved successfully", "approval_status": "Approved"}
+
+@router.post("/admin/users/{user_id}/reject")
+def reject_user(
+    user_id: str,
+    data: UserRejectRequest,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.approval_status = "Rejected"
+    user.approved_by = current_user.id
+    user.approval_date = datetime.utcnow()
+    user.rejection_reason = data.rejection_reason
+    user.approval_notes = data.notes
+    db.commit()
+    
+    # Send rejection email
+    from app.services.email_service import EmailService
+    EmailService.send_user_rejected_email(user, reason=data.rejection_reason)
+    
+    return {"message": "User registration request rejected", "approval_status": "Rejected"}
+
+@router.post("/admin/users/{user_id}/suspend")
+def suspend_user(
+    user_id: str,
+    data: UserSuspendRequest,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.approval_status = "Suspended"
+    user.is_active = False
+    user.approved_by = current_user.id
+    user.approval_date = datetime.utcnow()
+    user.approval_notes = data.notes
+    db.commit()
+    
+    return {"message": "User account suspended", "approval_status": "Suspended"}
+
+@router.post("/admin/users/{user_id}/reactivate")
+def reactivate_user(
+    user_id: str,
+    data: UserReactivateRequest,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.approval_status = "Approved"
+    user.is_active = True
+    user.approved_by = current_user.id
+    user.approval_date = datetime.utcnow()
+    user.approval_notes = data.notes
+    db.commit()
+    
+    # Send approved email
+    from app.services.email_service import EmailService
+    EmailService.send_user_approved_email(user)
+    
+    return {"message": "User account reactivated", "approval_status": "Approved"}
+
+@router.patch("/admin/users/{user_id}/role")
+def update_user_role(
+    user_id: str,
+    data: UserRoleUpdateRequest,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.role = data.role
+    db.commit()
+    
+    return {"message": "User role updated successfully", "role": user.role}

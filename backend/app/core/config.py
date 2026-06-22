@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     OTP_BYPASS: bool = True
     ALLOWED_ORIGINS: List[str] = ["*"]
+    ADMIN_NOTIFICATION_EMAIL: str = "kumarsoniravi705@gmail.com"
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # S3 simulated or actual settings
     AWS_ACCESS_KEY_ID: str = ""

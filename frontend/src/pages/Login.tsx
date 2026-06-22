@@ -40,7 +40,12 @@ const Login: React.FC = () => {
         navigate("/admin");
       }
     } catch (err: any) {
-      dispatch(setError(err.message || "Registration failed"));
+      if (err.message === "OTP_REQUIRED") {
+        setView("otp");
+        setSuccessMsg("Registration successful! Please verify your email with the 6-digit OTP code sent to you.");
+      } else {
+        dispatch(setError(err.message || "Registration failed"));
+      }
     } finally {
       dispatch(setLoading(false));
     }
@@ -66,7 +71,12 @@ const Login: React.FC = () => {
         navigate("/admin");
       }
     } catch (err: any) {
-      dispatch(setError(err.message || "Invalid OTP code"));
+      if (err.message === "APPROVAL_PENDING") {
+        setSuccessMsg("Email verified successfully! Your account is now awaiting administrator approval. You will receive an email once it is approved.");
+        setView("login");
+      } else {
+        dispatch(setError(err.message || "Invalid OTP code"));
+      }
     } finally {
       dispatch(setLoading(false));
     }
@@ -94,6 +104,12 @@ const Login: React.FC = () => {
       if (err.message === "OTP_REQUIRED") {
         setView("otp");
         setSuccessMsg("Account not verified yet. Verification code resent.");
+      } else if (err.message === "APPROVAL_PENDING") {
+        dispatch(setError("Your account is awaiting administrator approval. Please wait for the confirmation email."));
+      } else if (err.message === "REGISTRATION_REJECTED") {
+        dispatch(setError("Your registration request was not approved. Please contact support."));
+      } else if (err.message === "ACCOUNT_SUSPENDED") {
+        dispatch(setError("Your account has been suspended. Please contact support."));
       } else {
         dispatch(setError(err.message || "Login failed"));
       }
@@ -123,7 +139,15 @@ const Login: React.FC = () => {
         navigate("/admin");
       }
     } catch (err: any) {
-      dispatch(setError(err.message || "Google Login failed"));
+      if (err.message === "APPROVAL_PENDING") {
+        dispatch(setError("Your Google account is awaiting administrator approval."));
+      } else if (err.message === "REGISTRATION_REJECTED") {
+        dispatch(setError("Your registration request was not approved."));
+      } else if (err.message === "ACCOUNT_SUSPENDED") {
+        dispatch(setError("Your account has been suspended."));
+      } else {
+        dispatch(setError(err.message || "Google Login failed"));
+      }
     } finally {
       dispatch(setLoading(false));
     }

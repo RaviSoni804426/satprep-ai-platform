@@ -29,20 +29,24 @@ class UserRepository:
         return user
 
     @staticmethod
-    def list_users(db: Session, role: Optional[str] = None, search: Optional[str] = None, page: int = 1, limit: int = 50) -> List[User]:
+    def list_users(db: Session, role: Optional[str] = None, search: Optional[str] = None, status: Optional[str] = None, page: int = 1, limit: int = 50) -> List[User]:
         query = db.query(User)
         if role:
             query = query.filter(User.role == role)
+        if status:
+            query = query.filter(User.approval_status == status)
         if search:
             query = query.filter(User.email.contains(search) | User.full_name.contains(search))
         offset = (page - 1) * limit
         return query.offset(offset).limit(limit).all()
 
     @staticmethod
-    def count_users(db: Session, role: Optional[str] = None, search: Optional[str] = None) -> int:
+    def count_users(db: Session, role: Optional[str] = None, search: Optional[str] = None, status: Optional[str] = None) -> int:
         query = db.query(User)
         if role:
             query = query.filter(User.role == role)
+        if status:
+            query = query.filter(User.approval_status == status)
         if search:
             query = query.filter(User.email.contains(search) | User.full_name.contains(search))
         return query.count()

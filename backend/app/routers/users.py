@@ -67,17 +67,26 @@ def update_me(
 def get_all_users(
     role: Optional[str] = None,
     search: Optional[str] = None,
+    status: Optional[str] = None,
     page: int = 1,
     limit: int = 50,
     db: Session = Depends(get_db)
 ):
-    users = UserRepository.list_users(db, role, search, page, limit)
-    total = UserRepository.count_users(db, role, search)
+    users = UserRepository.list_users(db, role, search, status, page, limit)
+    total = UserRepository.count_users(db, role, search, status)
     
     data = []
     for u in users:
         target_score = u.profile.target_score if (u.role == "student" and u.profile) else None
         counsellor_id = u.profile.counsellor_id if (u.role == "student" and u.profile) else None
+        
+        # Resolve approved by user name/email if exists
+        approved_by_info = None
+        if u.approved_by:
+            approver = UserRepository.get_by_id(db, u.approved_by)
+            if approver:
+                approved_by_info = approver.full_name or approver.email
+                
         data.append({
             "id": u.id,
             "email": u.email,
@@ -85,7 +94,16 @@ def get_all_users(
             "full_name": u.full_name,
             "target_score": target_score,
             "counsellor_id": counsellor_id,
-            "is_active": u.is_active
+            "is_active": u.is_active,
+            "approval_status": u.approval_status,
+            "approved_by": u.approved_by,
+            "approved_by_name": approved_by_info,
+            "approval_date": u.approval_date.isoformat() if u.approval_date else None,
+            "rejection_reason": u.rejection_reason,
+            "approval_notes": u.approval_notes,
+            "registration_ip": u.registration_ip,
+            "registration_user_agent": u.registration_user_agent,
+            "created_at": u.created_at.isoformat() if u.created_at else None
         })
         
     return {

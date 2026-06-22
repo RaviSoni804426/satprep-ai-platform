@@ -31,6 +31,18 @@ try:
         conn.execute(text("ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_score INTEGER DEFAULT 50"))
         conn.execute(text("ALTER TABLE questions ADD COLUMN IF NOT EXISTS common_misconception TEXT NULL"))
         conn.execute(text("ALTER TABLE questions ADD COLUMN IF NOT EXISTS related_concept TEXT NULL"))
+        
+        # User Approval Columns
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) NOT NULL DEFAULT 'Pending'"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by VARCHAR(36)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_date TIMESTAMP"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rejection_reason TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_notes TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip VARCHAR(50)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_user_agent VARCHAR(500)"))
+        
+        # Ensure default test users are Approved
+        conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
         logger.info("Dynamic migrations completed successfully.")
 except Exception as e:
     logger.error(f"Error initializing database tables: {e}")
