@@ -23,10 +23,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  const effectiveRole = user.role === "SUPER_ADMIN" ? "admin" : user.role;
+
+  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
     // Redirect to correct default role dashboard
-    if (user.role === "student") return <Navigate to="/dashboard" replace />;
-    if (user.role === "counsellor") return <Navigate to="/counsellor" replace />;
+    if (effectiveRole === "student") return <Navigate to="/dashboard" replace />;
+    if (effectiveRole === "counsellor") return <Navigate to="/counsellor" replace />;
     return <Navigate to="/admin" replace />;
   }
 
@@ -41,8 +43,10 @@ const RootDirector: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role === "student") return <Navigate to="/dashboard" replace />;
-  if (user.role === "counsellor") return <Navigate to="/counsellor" replace />;
+  const effectiveRole = user.role === "SUPER_ADMIN" ? "admin" : user.role;
+
+  if (effectiveRole === "student") return <Navigate to="/dashboard" replace />;
+  if (effectiveRole === "counsellor") return <Navigate to="/counsellor" replace />;
   return <Navigate to="/admin" replace />;
 };
 
