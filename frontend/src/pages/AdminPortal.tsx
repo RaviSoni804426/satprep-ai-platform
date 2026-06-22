@@ -230,7 +230,7 @@ const AdminPortal: React.FC = () => {
                 </div>
                 <div className="premium-card bg-white p-6">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Test Completion Rate</span>
-                  <span className="text-3xl font-extrabold text-success mt-1 block">{int(platformStats.completion_rate * 100)}%</span>
+                  <span className="text-3xl font-extrabold text-success mt-1 block">{Math.round(Number(platformStats.completion_rate * 100))}%</span>
                 </div>
                 <div className="premium-card bg-white p-6">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Active Users (30d)</span>
@@ -508,8 +508,5 @@ const AdminPortal: React.FC = () => {
     </div>
   );
 };
-
-// Quick helper to cast values safely in JSX
-const int = (val: any) => Math.round(Number(val));
 
 export default AdminPortal;
