@@ -1,8 +1,10 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     ENV: str = "development"
     DATABASE_URL: str = "postgresql://user:pass@localhost:5432/satprep"
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -17,9 +19,5 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_BUCKET_NAME: str = "satprep-ai-bucket"
-
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
 
 settings = Settings()

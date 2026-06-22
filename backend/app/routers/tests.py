@@ -5,7 +5,7 @@ from app.schemas.schemas import TestOut, SessionStartOut, AnswerSubmit, ModuleSu
 from app.routers.deps import get_current_user, require_role
 from app.models.models import User, TestSession
 from app.services.test_service import TestService
-from app.repository.db_repo import TestRepository, ScoreRepository, SessionRepository
+from app.repository.db_repo import QuestionRepository, TestRepository, ScoreRepository, SessionRepository
 from app.tasks.scoring_task import process_score_and_recommendations
 from typing import List, Dict, Any
 from datetime import datetime
@@ -124,12 +124,12 @@ def get_score(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    sess = SessionRepository.get_session_by_id(db, session_id)
+    if not sess:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SESSION_NOT_FOUND")
+
     score = ScoreRepository.get_score_by_session(db, session_id)
     if not score:
-        # Check if the session exists
-        sess = SessionRepository.get_session_by_id(db, session_id)
-        if not sess:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SESSION_NOT_FOUND")
         if sess.status == "in_progress":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SESSION_IN_PROGRESS")
             
@@ -233,4 +233,3 @@ def get_session_review(
                 "module_no": ans.module_no
             })
     return review_data
-

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 
@@ -30,6 +30,8 @@ class TokenRefreshResponse(BaseModel):
     expires_in: int = 900
 
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     email: str
     role: str
@@ -38,14 +40,13 @@ class UserOut(BaseModel):
     counsellor_id: Optional[str] = None
     is_active: bool
     
-    class Config:
-        from_attributes = True
-
 class UserProfileUpdate(BaseModel):
     target_score: Optional[int] = None
     target_test_date: Optional[date] = None
 
 class QuestionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     body: str
     option_a: Optional[str] = None
@@ -55,9 +56,6 @@ class QuestionOut(BaseModel):
     difficulty: str
     topic_id: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-
 class QuestionCreate(BaseModel):
     body: str
     option_a: Optional[str] = None
@@ -70,14 +68,13 @@ class QuestionCreate(BaseModel):
     topic_id: Optional[str] = None
 
 class TestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     description: Optional[str] = None
     is_active: bool
     
-    class Config:
-        from_attributes = True
-
 class SessionStartOut(BaseModel):
     session_id: str
     module_no: int
@@ -102,6 +99,8 @@ class ModuleSubmitOut(BaseModel):
     next_module: Optional[NextModuleDetails] = None
 
 class ScoreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     reading_raw: int
     reading_scaled: int
@@ -112,9 +111,6 @@ class ScoreOut(BaseModel):
     band_high: int
     skill_breakdown: Dict[str, int]
     
-    class Config:
-        from_attributes = True
-
 class SessionResumeOut(BaseModel):
     current_module: int
     time_remaining: int
@@ -138,14 +134,13 @@ class PlatformAnalyticsOut(BaseModel):
     active_students_30d: int
 
 class RecommendationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     type: str
     title: str
     content: Dict[str, Any]
     generated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class RosterStudentOut(BaseModel):
     id: str
