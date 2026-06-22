@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, users, tests, analytics, recommendations, admin
+from app.routers import auth, users, tests, analytics, recommendations, admin, coach
 
 # Setup logs
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +17,21 @@ try:
     logger.info("Initializing database tables...")
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables initialized successfully.")
+    
+    # Run migrations dynamically for new columns
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        logger.info("Running dynamic database column migrations...")
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS xp_points INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS last_active_date DATE NULL"))
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS learning_style VARCHAR(100) DEFAULT 'Visual & Practical'"))
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS preferred_study_time VARCHAR(100) DEFAULT 'Evening (6 PM - 9 PM)'"))
+        conn.execute(text("ALTER TABLE session_answers ADD COLUMN IF NOT EXISTS mistake_type VARCHAR(100) NULL"))
+        conn.execute(text("ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_score INTEGER DEFAULT 50"))
+        conn.execute(text("ALTER TABLE questions ADD COLUMN IF NOT EXISTS common_misconception TEXT NULL"))
+        conn.execute(text("ALTER TABLE questions ADD COLUMN IF NOT EXISTS related_concept TEXT NULL"))
+        logger.info("Dynamic migrations completed successfully.")
 except Exception as e:
     logger.error(f"Error initializing database tables: {e}")
 
@@ -68,6 +83,7 @@ app.include_router(tests.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
 app.include_router(recommendations.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
+app.include_router(coach.router, prefix="/v1")
 
 # Health Check Route
 @app.get("/healthz")

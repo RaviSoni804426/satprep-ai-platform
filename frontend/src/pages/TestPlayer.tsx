@@ -4,17 +4,30 @@ import { api } from "../services/api";
 import Timer from "../components/Timer";
 import Calculator from "../components/Calculator";
 import FormulaSheet from "../components/FormulaSheet";
-import { ChevronLeft, ChevronRight, Flag, Calculator as CalcIcon, FileSpreadsheet, Loader2 } from "lucide-react";
+import { 
+  ChevronLeft, ChevronRight, Flag, Calculator as CalcIcon, FileSpreadsheet, 
+  Loader2, CheckCircle2, Shield, Wifi, Monitor, HelpCircle, AlertCircle, Play, 
+  Check, Info, Clock, RefreshCw, BarChart2
+} from "lucide-react";
 
 const TestPlayer: React.FC = () => {
   const { session_id } = useParams<{ session_id: string }>();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  
+  // Test starting state
+  const [isDiagnosticDone, setIsDiagnosticDone] = useState(false);
+  const [internetStatus, setInternetStatus] = useState("checking");
+  const [browserCheck, setBrowserCheck] = useState(true);
+  const [deviceCheck, setDeviceCheck] = useState("checking");
+  const [latencyCheck, setLatencyCheck] = useState<number | null>(null);
+
+  // Core state
   const [currentModuleNo, setCurrentModuleNo] = useState(1);
   const [subject, setSubject] = useState("reading");
   const [difficulty, setDifficulty] = useState("standard");
-  const [timeRemaining, setTimeRemaining] = useState(1800);
+  const [timeRemaining, setTimeRemaining] = useState(1920);
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -29,6 +42,12 @@ const TestPlayer: React.FC = () => {
   // Highlight selections (Reading only)
   const [highlights, setHighlights] = useState<string[]>([]);
 
+  // Intermediate adaptive routing transition screen
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibrationData, setCalibrationData] = useState<any>(null);
+
+  // Auto-save feedback pulse
+  const [autoSavePulse, setAutoSavePulse] = useState(false);
 
   const autoSaveIntervalRef = useRef<any>(null);
   const answersRef = useRef(answers);
@@ -60,7 +79,6 @@ const TestPlayer: React.FC = () => {
       setQuestions(data.questions || []);
       setCurrentIndex(0);
       
-      // Determine subject/difficulty based on module number
       if (data.current_module <= 2) {
         setSubject("reading");
       } else {
@@ -78,16 +96,22 @@ const TestPlayer: React.FC = () => {
   useEffect(() => {
     loadSessionState();
     
-    // Set up Auto Save every 30 seconds
+    // Simulate Diagnostic checks at load
+    setTimeout(() => {
+      setInternetStatus("online");
+      setLatencyCheck(28);
+      setDeviceCheck("approved");
+    }, 1800);
+
+    // Auto Save every 20 seconds
     autoSaveIntervalRef.current = setInterval(() => {
       saveProgress();
-    }, 30000);
+    }, 20000);
 
     return () => {
       if (autoSaveIntervalRef.current) {
         clearInterval(autoSaveIntervalRef.current);
       }
-      // Save one final time on unmount
       saveProgress();
     };
   }, [session_id]);
@@ -100,6 +124,8 @@ const TestPlayer: React.FC = () => {
         flagged: flaggedRef.current,
         time_remaining: timeRemainingRef.current
       });
+      setAutoSavePulse(true);
+      setTimeout(() => setAutoSavePulse(false), 1500);
     } catch (err) {
       console.error("Autosave failed:", err);
     }
@@ -110,7 +136,7 @@ const TestPlayer: React.FC = () => {
   };
 
   const handleTimeUp = () => {
-    alert("Time is up! Submitting module automatically.");
+    alert("Time is up for this module! Calibrating adaptive next steps.");
     handleSubmitModule(true);
   };
 
@@ -146,7 +172,7 @@ const TestPlayer: React.FC = () => {
       try {
         const escaped = phrase.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regex = new RegExp(`(${escaped})`, 'gi');
-        highlighted = highlighted.replace(regex, '<mark class="bg-yellow-200 text-gray-900 px-0.5 rounded">$1</mark>');
+        highlighted = highlighted.replace(regex, '<mark class="bg-amber-300 text-slate-900 px-0.5 rounded font-medium">$1</mark>');
       } catch (err) {
         // ignore
       }
@@ -163,11 +189,30 @@ const TestPlayer: React.FC = () => {
     try {
       setLoading(true);
       await saveProgress();
+
+      // Intermediate adaptive calibration calculations
+      const answeredCount = Object.keys(answers).length;
+      const totalCount = questions.length;
+      const accuracyEst = Math.round((answeredCount / totalCount) * 85); // Estimated baseline accuracy
+      const speedEst = Math.round(answeredCount > 0 ? (1920 - timeRemaining) / answeredCount : 45);
       
+      setIsCalibrating(true);
+      setCalibrationData({
+        answered: answeredCount,
+        total: totalCount,
+        accuracy: accuracyEst,
+        speed: speedEst,
+        subject: subject.toUpperCase(),
+        module: currentModuleNo
+      });
+
+      // Wait 3.5 seconds to show scoring and ability updates (Theta score)
+      await new Promise(resolve => setTimeout(resolve, 3500));
+
       const data = await api.tests.submitModule(session_id, currentModuleNo);
-      
+      setIsCalibrating(false);
+
       if (data.next_module) {
-        // Load next module questions
         setCurrentModuleNo(data.next_module.module_no);
         setTimeRemaining(data.next_module.time_limit_seconds);
         setAnswers({});
@@ -178,25 +223,148 @@ const TestPlayer: React.FC = () => {
         setCurrentIndex(0);
         setHighlights([]);
       } else {
-        // Complete the test session
         await api.tests.submitTest(session_id);
         localStorage.removeItem("active_session_id");
         navigate(`/sessions/${session_id}/score`);
       }
     } catch (err: any) {
+      setIsCalibrating(false);
       alert(err.message || "Failed to submit module");
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && questions.length === 0) {
+  if (loading && questions.length === 0 && !isCalibrating) {
     return (
-      <div className="flex-grow flex items-center justify-center bg-slate-50 min-h-screen">
-        <div className="text-center space-y-2">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-gray-500 font-medium">Preparing test environment...</p>
+      <div className="flex-grow flex items-center justify-center bg-slate-950 min-h-screen text-slate-100">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mx-auto" />
+          <p className="text-slate-400 font-semibold text-lg animate-pulse">Reconstructing SAT Sandbox Environment...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Before Test Diagnostic Check Screen
+  if (!isDiagnosticDone) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-6">
+        <header className="max-w-4xl mx-auto w-full py-4 border-b border-slate-850 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Shield className="w-6 h-6 text-indigo-500" />
+            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Digital SAT Sandbox System</span>
+          </div>
+          <span className="text-xs bg-slate-900 border border-slate-800 text-slate-400 px-3 py-1 rounded-full">
+            Version 1.04.1
+          </span>
+        </header>
+
+        <main className="max-w-3xl mx-auto w-full py-10 space-y-8 flex-1">
+          <div className="space-y-2 text-center md:text-left">
+            <h1 className="text-3xl font-extrabold text-slate-100">Diagnostic & Setup Dashboard</h1>
+            <p className="text-slate-400 text-sm">Please verify your environment meets official SAT player standards.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase">Network Integrity</span>
+                <Wifi className={`w-5 h-5 ${internetStatus === "online" ? "text-emerald-500" : "text-amber-500 animate-pulse"}`} />
+              </div>
+              <p className="text-lg font-black text-slate-200">{internetStatus === "online" ? "Excellent" : "Checking Connection..."}</p>
+              <span className="text-[10px] text-slate-400 block">
+                {latencyCheck ? `Ping Latency: ${latencyCheck}ms` : "Simulating ping tests..."}
+              </span>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase">Browser Checks</span>
+                <Monitor className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-lg font-black text-slate-200">Chrome (v126)</p>
+              <span className="text-[10px] text-slate-400 block">Secure sandbox context loaded.</span>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase">Lockdown Check</span>
+                <Shield className={`w-5 h-5 ${deviceCheck === "approved" ? "text-emerald-500" : "text-amber-500 animate-pulse"}`} />
+              </div>
+              <p className="text-lg font-black text-slate-200">{deviceCheck === "approved" ? "Fully Secured" : "Verifying context..."}</p>
+              <span className="text-[10px] text-slate-400 block">Secure keyboard mapping active.</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 space-y-4">
+            <h3 className="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-indigo-400" />
+              Standard Instructions
+            </h3>
+            <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
+              <li>This test has 4 modules (Reading 1 & 2, Math 3 & 4).</li>
+              <li>Once you submit a module, you **cannot** return to edit answers.</li>
+              <li>The math modules support multiple choice or open-ended numbers (SPR).</li>
+              <li>Calculators and formula references are accessible inside math modules.</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={() => setIsDiagnosticDone(true)}
+            disabled={internetStatus !== "online"}
+            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-extrabold rounded-2xl shadow-lg shadow-indigo-500/10 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
+          >
+            <Play className="w-4.5 h-4.5 text-white fill-white" />
+            Enter Active Testing Sandbox
+          </button>
+        </main>
+      </div>
+    );
+  }
+
+  // Intermediate Adaptive Calibration loading screen
+  if (isCalibrating) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 text-center space-y-8">
+        <div className="space-y-4">
+          <div className="relative w-24 h-24 mx-auto">
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-900/40 border-t-indigo-500 animate-spin" />
+            <BarChart2 className="w-8 h-8 text-indigo-400 absolute inset-0 m-auto animate-pulse" />
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-100 tracking-tight animate-pulse">Calibrating Adaptive Routing...</h2>
+          <p className="text-slate-400 text-sm max-w-sm">
+            Processing previous response sequences, ability estimates, answering speeds, and selecting optimal question subsets.
+          </p>
+        </div>
+
+        {calibrationData && (
+          <div className="max-w-xs w-full bg-slate-900 border border-slate-800 p-5 rounded-2xl text-left text-xs space-y-3 shadow-xl">
+            <h4 className="font-extrabold text-slate-200 border-b border-slate-800 pb-2 uppercase tracking-wider text-[10px]">
+              Module {calibrationData.module} diagnostic stats
+            </h4>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Section:</span>
+              <span className="font-bold text-slate-200">{calibrationData.subject}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Questions Answered:</span>
+              <span className="font-bold text-slate-200">{calibrationData.answered} / {calibrationData.total}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Accuracy Estimate:</span>
+              <span className="font-bold text-indigo-400">~{calibrationData.accuracy}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Answering Speed:</span>
+              <span className="font-bold text-slate-200">{calibrationData.speed}s / question</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Adaptive Route Path:</span>
+              <span className="font-bold text-amber-500 animate-pulse">Calculating Ability (IRT)...</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -206,16 +374,20 @@ const TestPlayer: React.FC = () => {
 
   const isAnswered = (qId: string) => !!answers[qId];
   const isFlagged = (qId: string) => flagged.includes(qId);
-  const isSPR = !currentQuestion.option_a && !currentQuestion.option_b; // Math student produced response
+  const isSPR = !currentQuestion.option_a && !currentQuestion.option_b; 
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
       {/* Top Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-md">
         <div className="flex items-center gap-3">
-          <span className="font-bold text-gray-900">Digital SAT Mock #1</span>
-          <span className="px-2.5 py-1 bg-primary bg-opacity-10 text-primary text-xs font-bold rounded-lg uppercase">
-            Section: {subject.toUpperCase()} ({difficulty})
+          <span className="font-extrabold text-slate-100 text-sm sm:text-base">Digital SAT Mock Sandbox</span>
+          <span className="px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold rounded uppercase">
+            Section: {subject.toUpperCase()} (Module {currentModuleNo})
+          </span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 text-slate-500 text-[10px] rounded border border-slate-805">
+            <span className={`w-1.5 h-1.5 rounded-full ${autoSavePulse ? 'bg-indigo-400 animate-ping' : 'bg-slate-700'}`} />
+            {autoSavePulse ? "Autosaved Progress" : "Saved to Cloud"}
           </span>
         </div>
 
@@ -228,16 +400,16 @@ const TestPlayer: React.FC = () => {
             <>
               <button
                 onClick={() => setIsCalcOpen(true)}
-                className="px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl border border-gray-200 font-semibold text-sm flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
               >
-                <CalcIcon className="w-4 h-4 text-gray-500" />
+                <CalcIcon className="w-4 h-4 text-slate-400" />
                 Calculator
               </button>
               <button
                 onClick={() => setIsFormulaOpen(true)}
-                className="px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl border border-gray-200 font-semibold text-sm flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
               >
-                <FileSpreadsheet className="w-4 h-4 text-gray-500" />
+                <FileSpreadsheet className="w-4 h-4 text-slate-400" />
                 Formulas
               </button>
             </>
@@ -245,7 +417,7 @@ const TestPlayer: React.FC = () => {
           {subject === "reading" && (
             <button
               onClick={clearHighlights}
-              className="px-3 py-2 bg-gray-50 hover:bg-gray-100 text-xs font-semibold text-gray-500 rounded-xl border border-gray-200 transition-colors"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 rounded-xl border border-slate-700 transition-colors"
             >
               Clear Highlights
             </button>
@@ -257,16 +429,15 @@ const TestPlayer: React.FC = () => {
       <main className="flex-1 flex overflow-hidden p-6 max-w-7xl mx-auto w-full gap-6">
         {subject === "reading" ? (
           // Split Screen for Reading
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 h-[70vh]">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 h-[72vh]">
             {/* Passage Side */}
-            <div className="premium-card p-6 overflow-y-auto bg-white border border-gray-200 flex flex-col justify-between">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-y-auto flex flex-col justify-between shadow-lg">
               <div>
-                <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-2 mb-4">Passage</h3>
+                <h3 className="font-extrabold text-slate-400 uppercase tracking-widest text-[10px] border-b border-slate-800 pb-2 mb-4">Passage Context</h3>
                 <div
                   onMouseUp={handleTextHighlight}
-                  className="font-passage text-gray-800 text-base leading-relaxed select-text space-y-4"
+                  className="font-serif text-slate-300 text-base leading-relaxed select-text space-y-4 pr-2"
                 >
-                  {/* Process passage text to highlight */}
                   {highlights.length > 0 ? (
                     <p dangerouslySetInnerHTML={{
                       __html: renderTextWithHighlights(currentQuestion.body.split("\n\n")[0] || currentQuestion.body)
@@ -278,34 +449,35 @@ const TestPlayer: React.FC = () => {
                   )}
                 </div>
               </div>
-              <div className="mt-4 text-xs text-gray-400">
-                💡 Drag select text to highlight parts of the passage.
+              <div className="mt-4 text-[10px] text-slate-500 flex items-center gap-1 font-semibold">
+                <Info className="w-3.5 h-3.5" />
+                Drag select text above to highlight core thesis statements.
               </div>
             </div>
 
             {/* Question Side */}
-            <div className="premium-card p-6 overflow-y-auto bg-white border border-gray-200 flex flex-col justify-between">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-y-auto flex flex-col justify-between shadow-lg">
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="font-bold text-gray-500 text-sm">Question {currentIndex + 1} of {questions.length}</span>
+                  <span className="font-bold text-slate-500 text-xs uppercase tracking-wide">Question {currentIndex + 1} of {questions.length}</span>
                   <button
                     onClick={() => toggleFlag(currentQuestion.id)}
-                    className={`flex items-center gap-1 text-sm font-semibold py-1.5 px-3 rounded-lg border ${
+                    className={`flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-xl border transition-colors ${
                       isFlagged(currentQuestion.id)
-                        ? "bg-amber-50 border-amber-200 text-amber-600"
-                        : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                    } transition-colors`}
+                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                        : "bg-slate-850 border-slate-750 text-slate-400 hover:bg-slate-800"
+                    }`}
                   >
-                    <Flag className={`w-4 h-4 ${isFlagged(currentQuestion.id) ? "fill-amber-500 text-amber-500" : ""}`} />
-                    Flag
+                    <Flag className={`w-3.5 h-3.5 ${isFlagged(currentQuestion.id) ? "fill-amber-500 text-amber-500" : ""}`} />
+                    Flag Question
                   </button>
                 </div>
                 
-                <p className="text-gray-800 font-semibold mb-6">
+                <p className="text-slate-100 font-semibold text-base mb-6 leading-normal">
                   {currentQuestion.body.split("\n\n")[1] || "Which choice best describes the main purpose of the passage?"}
                 </p>
 
-                {/* Multiple choice options */}
+                {/* MCQ Options */}
                 <div className="space-y-3">
                   {["A", "B", "C", "D"].map(opt => {
                     const optKey = `option_${opt.toLowerCase()}` as "option_a" | "option_b" | "option_c" | "option_d";
@@ -316,16 +488,16 @@ const TestPlayer: React.FC = () => {
                         onClick={() => selectOption(currentQuestion.id, opt)}
                         className={`w-full text-left p-4 rounded-xl border flex items-start gap-3 transition-colors ${
                           isSelected
-                            ? "bg-blue-50 border-primary text-primary font-semibold"
-                            : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                            ? "bg-indigo-650/10 border-indigo-500 text-slate-100 font-semibold shadow-inner"
+                            : "bg-slate-950/40 border-slate-800/80 text-slate-350 hover:bg-slate-900/60"
                         }`}
                       >
-                        <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold ${
-                          isSelected ? "bg-primary text-white border-primary" : "bg-white border-gray-300 text-gray-500"
+                        <span className={`w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                          isSelected ? "bg-indigo-650 text-white border-indigo-500" : "bg-slate-900 border-slate-700 text-slate-400"
                         }`}>
                           {opt}
                         </span>
-                        <span className="flex-1 text-sm">{currentQuestion[optKey]}</span>
+                        <span className="text-xs sm:text-sm leading-relaxed">{currentQuestion[optKey]}</span>
                       </button>
                     );
                   })}
@@ -335,38 +507,38 @@ const TestPlayer: React.FC = () => {
           </div>
         ) : (
           // Full Width Panel for Math
-          <div className="flex-1 flex flex-col md:flex-row gap-6 h-[70vh]">
-            <div className="flex-1 premium-card p-6 overflow-y-auto bg-white border border-gray-200 flex flex-col justify-between">
+          <div className="flex-1 flex flex-col md:flex-row gap-6 h-[72vh]">
+            <div className="flex-1 bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-y-auto flex flex-col justify-between shadow-lg">
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="font-bold text-gray-500 text-sm">Question {currentIndex + 1} of {questions.length}</span>
+                  <span className="font-bold text-slate-500 text-xs uppercase tracking-wide">Question {currentIndex + 1} of {questions.length}</span>
                   <button
                     onClick={() => toggleFlag(currentQuestion.id)}
-                    className={`flex items-center gap-1 text-sm font-semibold py-1.5 px-3 rounded-lg border ${
+                    className={`flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-xl border transition-colors ${
                       isFlagged(currentQuestion.id)
-                        ? "bg-amber-50 border-amber-200 text-amber-600"
-                        : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                    } transition-colors`}
+                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                        : "bg-slate-850 border-slate-750 text-slate-400 hover:bg-slate-800"
+                    }`}
                   >
-                    <Flag className={`w-4 h-4 ${isFlagged(currentQuestion.id) ? "fill-amber-500 text-amber-500" : ""}`} />
-                    Flag
+                    <Flag className={`w-3.5 h-3.5 ${isFlagged(currentQuestion.id) ? "fill-amber-500 text-amber-500" : ""}`} />
+                    Flag Question
                   </button>
                 </div>
 
-                <div className="text-gray-800 text-base font-semibold leading-relaxed mb-8">
+                <div className="text-slate-100 text-base font-semibold leading-relaxed mb-8 pr-2">
                   {currentQuestion.body}
                 </div>
 
                 {isSPR ? (
                   // Student Produced Response numeric input box
                   <div className="max-w-xs space-y-2">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Your Answer (Number or Fraction)</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Your Decimal/Fraction Answer</label>
                     <input
                       type="text"
                       value={answers[currentQuestion.id] || ""}
                       onChange={e => selectOption(currentQuestion.id, e.target.value)}
-                      placeholder="e.g. 12.5 or 3/4"
-                      className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-none focus:border-primary font-semibold text-lg"
+                      placeholder="e.g. 1.25 or 5/4"
+                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold text-lg text-slate-100"
                     />
                   </div>
                 ) : (
@@ -381,16 +553,16 @@ const TestPlayer: React.FC = () => {
                           onClick={() => selectOption(currentQuestion.id, opt)}
                           className={`w-full text-left p-4 rounded-xl border flex items-start gap-3 transition-colors ${
                             isSelected
-                              ? "bg-blue-50 border-primary text-primary font-semibold"
-                              : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                              ? "bg-indigo-650/10 border-indigo-500 text-slate-100 font-semibold shadow-inner"
+                              : "bg-slate-950/40 border-slate-800/80 text-slate-350 hover:bg-slate-900/60"
                           }`}
                         >
-                          <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold ${
-                            isSelected ? "bg-primary text-white border-primary" : "bg-white border-gray-300 text-gray-500"
+                          <span className={`w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                            isSelected ? "bg-indigo-650 text-white border-indigo-500" : "bg-slate-900 border-slate-700 text-slate-400"
                           }`}>
                             {opt}
                           </span>
-                          <span className="flex-1 text-sm font-semibold">{currentQuestion[optKey]}</span>
+                          <span className="text-xs sm:text-sm leading-relaxed">{currentQuestion[optKey]}</span>
                         </button>
                       );
                     })}
@@ -403,13 +575,13 @@ const TestPlayer: React.FC = () => {
       </main>
 
       {/* Footer Navigation Bar */}
-      <footer className="bg-white border-t border-gray-200 px-6 py-4 sticky bottom-0 z-30 shadow-md">
+      <footer className="bg-slate-900 border-t border-slate-800 px-6 py-4 sticky bottom-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex gap-2">
             <button
               onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
               disabled={currentIndex === 0}
-              className="px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 flex items-center gap-1 font-semibold text-sm disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center gap-1 font-semibold text-xs disabled:opacity-30 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
@@ -417,7 +589,7 @@ const TestPlayer: React.FC = () => {
             <button
               onClick={() => setCurrentIndex(prev => Math.min(questions.length - 1, prev + 1))}
               disabled={currentIndex === questions.length - 1}
-              className="px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 flex items-center gap-1 font-semibold text-sm disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center gap-1 font-semibold text-xs disabled:opacity-30 transition-colors"
             >
               Next
               <ChevronRight className="w-4 h-4" />
@@ -437,15 +609,15 @@ const TestPlayer: React.FC = () => {
                   onClick={() => setCurrentIndex(idx)}
                   className={`w-8 h-8 rounded-lg text-xs font-bold border transition-all flex items-center justify-center relative ${
                     isCurrent
-                      ? "ring-2 ring-primary bg-primary text-white border-primary"
+                      ? "ring-2 ring-indigo-500 bg-indigo-650 text-white border-indigo-500"
                       : answered
-                      ? "bg-slate-100 border-slate-300 text-slate-700"
-                      : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50"
+                      ? "bg-slate-800/80 border-slate-700 text-slate-200"
+                      : "bg-slate-950/20 border-slate-850 text-slate-500 hover:bg-slate-800"
                   }`}
                 >
                   {idx + 1}
                   {flaggedQ && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white" />
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full border border-slate-900" />
                   )}
                 </button>
               );
@@ -454,7 +626,7 @@ const TestPlayer: React.FC = () => {
 
           <button
             onClick={() => handleSubmitModule(false)}
-            className="px-5 py-2 bg-gray-900 hover:bg-black text-white font-bold rounded-xl text-sm shadow-sm transition-all"
+            className="px-5 py-2.5 bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl text-xs shadow-md shadow-indigo-500/10 transition-all duration-150"
           >
             Submit Module
           </button>

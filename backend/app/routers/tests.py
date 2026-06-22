@@ -215,6 +215,21 @@ def get_session_review(
     for ans in answers:
         q = QuestionRepository.get_question_by_id(db, ans.question_id)
         if q:
+            # Fallback values for misconceptions and related concepts if not set in db
+            fallback_misconceptions = {
+                "Information & Ideas": "Misinterpreting text evidence or over-generalizing details.",
+                "Craft & Structure": "Conflating tone with character intent or vocabulary definitions.",
+                "Expression of Ideas": "Using redundant transitional words or incorrect rhetorical structures.",
+                "Standard English Conventions": "Misidentifying comma splices or pronoun-antecedent agreement.",
+                "Algebra": "Making sign errors when multiplying/dividing by a negative number.",
+                "Advanced Math": "Incorrectly factoring quadratics or misapplying exponent rules.",
+                "Problem Solving & Data Analysis": "Confusing ratios with percentages or misinterpreting standard deviations.",
+                "Geometry & Trigonometry": "Using incorrect trigonometric ratios (SOH CAH TOA) or area formulas."
+            }
+            domain = q.topic.skill_domain if q.topic else "Algebra"
+            misconception = q.common_misconception or fallback_misconceptions.get(domain, "Forgetting to review intermediate algebraic steps.")
+            related = q.related_concept or f"{domain} and Equation Calibration"
+            
             review_data.append({
                 "question_id": q.id,
                 "body": q.body,
@@ -230,6 +245,37 @@ def get_session_review(
                 "explanation": q.explanation,
                 "topic_name": q.topic.name if q.topic else "General",
                 "subject": q.topic.subject if q.topic else "math",
-                "module_no": ans.module_no
+                "module_no": ans.module_no,
+                "mistake_type": ans.mistake_type,
+                "common_misconception": misconception,
+                "related_concept": related,
+                "difficulty": q.difficulty,
+                "difficulty_score": q.difficulty_score or 55,
+                "estimated_mastery": 68 if ans.is_correct else 35,
+                "suggested_next_practice": f"Review {domain} revision guide and practice 10 questions"
             })
     return review_data
+
+from pydantic import BaseModel
+class MistakeTypeInput(BaseModel):
+    mistake_type: str
+
+@router.post("/sessions/{session_id}/questions/{question_id}/mistake")
+def update_mistake_type(
+    session_id: str,
+    question_id: str,
+    data: MistakeTypeInput,
+    current_user: User = Depends(require_role(["student"])),
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import and_
+    ans = db.query(SessionAnswer).filter(and_(
+        SessionAnswer.session_id == session_id,
+        SessionAnswer.question_id == question_id
+    )).first()
+    if not ans:
+        raise HTTPException(status_code=404, detail="Answer not found")
+        
+    ans.mistake_type = data.mistake_type
+    db.commit()
+    return {"updated": True, "mistake_type": data.mistake_type}

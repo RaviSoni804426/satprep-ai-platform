@@ -65,7 +65,11 @@ export const api = {
     submitTest: (sessionId: string) => apiFetch(`/sessions/${sessionId}/submit`, { method: "POST" }),
     getScore: (sessionId: string) => apiFetch(`/sessions/${sessionId}/score`),
     resume: (sessionId: string) => apiFetch(`/sessions/${sessionId}/resume`),
-    review: (sessionId: string) => apiFetch(`/sessions/${sessionId}/review`)
+    review: (sessionId: string) => apiFetch(`/sessions/${sessionId}/review`),
+    saveMistake: (sessionId: string, questionId: string, mistakeType: string) => apiFetch(`/sessions/${sessionId}/questions/${questionId}/mistake`, { method: "POST", body: JSON.stringify({ mistake_type: mistakeType }) })
+  },
+  coach: {
+    ask: (question: string) => apiFetch("/coach/ask", { method: "POST", body: JSON.stringify({ question }) })
   },
   analytics: {
     getMe: () => apiFetch("/analytics/me"),

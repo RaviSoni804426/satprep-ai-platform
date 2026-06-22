@@ -80,7 +80,6 @@ class RecommendationService:
                 
         weak_names = [t.name for t in weak_topics]
         
-        # 2. Build Practice Set (10-15 questions)
         # Exclude seen questions
         seen_answers = db.query(SessionAnswer.question_id)\
             .join(SessionAnswer.session)\
@@ -88,9 +87,29 @@ class RecommendationService:
             .all()
         seen_ids = [a[0] for a in seen_answers]
         
+        # Analyze mistake patterns
+        incorrect_answers = db.query(SessionAnswer)\
+            .join(SessionAnswer.session)\
+            .filter(and_(
+                SessionAnswer.session.has(student_id=student_id),
+                SessionAnswer.is_correct == False
+            )).all()
+            
+        mistake_patterns = {}
+        for ans in incorrect_answers:
+            m_type = ans.mistake_type or "concept_error"
+            mistake_patterns[m_type] = mistake_patterns.get(m_type, 0) + 1
+            
+        top_mistake = max(mistake_patterns, key=mistake_patterns.get) if mistake_patterns else "concept_error"
+        top_mistake_label = top_mistake.replace("_", " ").title()
+
+        # Analyze timing pressure (check for questions with > 75 seconds and wrong)
+        slow_questions_count = sum(1 for ans in incorrect_answers if ans.time_taken_seconds and ans.time_taken_seconds > 75)
+        timing_pressure_flag = slow_questions_count >= 3
+        
+        # 2. Build Practice Set (10-15 questions)
         practice_qs = []
         for topic_id in weak_topic_ids:
-            # Query questions for topic
             qs = db.query(Question).filter(and_(
                 Question.topic_id == topic_id,
                 Question.is_approved == True,
@@ -101,7 +120,6 @@ class RecommendationService:
         random.shuffle(practice_qs)
         practice_qs = practice_qs[:12]  # Cap at 12
         
-        # If not enough unseen questions, pull anyway (allow duplicates)
         if len(practice_qs) < 5:
             qs = db.query(Question).filter(and_(
                 Question.topic_id.in_(weak_topic_ids),
@@ -109,9 +127,16 @@ class RecommendationService:
             )).limit(10).all()
             practice_qs = qs
             
+        # Explanations of why shown
+        if timing_pressure_flag:
+            ps_reason = f"Shown because you missed multiple questions in {weak_names[0] if weak_names else 'Algebra'} under time pressure (> 75s per question)."
+        else:
+            ps_reason = f"Shown because your accuracy in {weak_names[0] if weak_names else 'Algebra'} is currently below 65%, with frequent '{top_mistake_label}' errors."
+
         practice_set_content = {
             "title": f"Weak Area Booster ({len(practice_qs)} Questions)",
             "topics": weak_names[:2],
+            "reason": ps_reason,
             "question_ids": [q.id for q in practice_qs],
             "questions": [{
                 "id": q.id,
@@ -135,19 +160,36 @@ class RecommendationService:
         
         for i, day in enumerate(days):
             topic = weak_topics[i % len(weak_topics)]
+            # Customize study plan tasks based on top mistake
+            if top_mistake == "calculation_error":
+                tasks = [
+                    f"Review arithmetic foundations for {topic.name} ({topic.subject}) - 20 mins",
+                    f"Complete 8 practice questions, double checking scratch work step-by-step - 40 mins",
+                    f"Flag any algebraic sign errors or division slip-ups - 15 mins"
+                ]
+            elif top_mistake == "reading_error":
+                tasks = [
+                    f"Read carefully the passage context for {topic.name} - 25 mins",
+                    f"Underline the core thesis statements and answer 8 practice questions - 35 mins",
+                    f"Identify exactly where choices misrepresent text nuances - 15 mins"
+                ]
+            else:
+                tasks = [
+                    f"Review core definitions and formulas for {topic.name} ({topic.subject}) - 30 mins",
+                    f"Solve 10 practice questions on {topic.name} - 45 mins",
+                    f"Analyze errors and review explanations - 15 mins"
+                ]
+                
             study_plan_days[day] = {
                 "topic": topic.name,
                 "subject": topic.subject.capitalize(),
                 "domain": topic.skill_domain,
-                "tasks": [
-                    f"Review concept notes for {topic.name} ({topic.subject}) - 30 mins",
-                    f"Solve 10 practice questions on {topic.name} - 45 mins",
-                    f"Analyze errors and review explanations - 15 mins"
-                ]
+                "tasks": tasks
             }
             
         study_plan_content = {
             "title": "7-Day Custom Revision Plan",
+            "reason": f"Created to fix your primary '{top_mistake_label}' misconception pattern through structured daily review.",
             "days": study_plan_days
         }
         
@@ -156,18 +198,9 @@ class RecommendationService:
         )
         
         # 4. Next Test Recommendation
-        # Suggest date based on target gap
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
-        target_score = profile.target_score if (profile and profile.target_score) else 1400
+        target_score = profile.target_score if (profile and profile.target_score) else 1450
         
-        # Get latest score
-        latest_score_obj = db.query(SessionAnswer)\
-            .join(SessionAnswer.session)\
-            .filter(and_(
-                SessionAnswer.session.has(student_id=student_id),
-                SessionAnswer.session.has(status="completed")
-            )).first()
-            
         # Get score average
         recent_scores = db.query(TestScore.total_score)\
             .join(TestScore.session)\
@@ -182,17 +215,17 @@ class RecommendationService:
             avg_score = sum(recent_scores) / len(recent_scores)
             gap = target_score - avg_score
         else:
-            gap = 200  # Default if no mocks taken
+            gap = 200
             
         if gap <= 0:
             days_out = 7
-            reason = "You are currently meeting your target! Take a weekly mock test to maintain momentum and build speed."
+            reason = f"Excellent job! You are currently scoring at or above your target score of {target_score}. Take a weekly mock test to maintain momentum and speed."
         elif gap <= 100:
             days_out = 10
-            reason = "You are close to your target score (within 100 points). Study your weak topics for 10 days, then take the next mock."
+            reason = f"You are close to your target score (only {int(gap)} points away). Study your weak topics for 10 days, then take the next mock to clear the gap."
         else:
             days_out = 14
-            reason = "There is a gap of more than 100 points to your target. We recommend taking 2 weeks to study weak topics before trying another mock."
+            reason = f"There is a gap of {int(gap)} points to your target of {target_score}. We recommend taking 2 weeks to study weak topics before trying another full mock."
             
         recommend_date = date.today() + timedelta(days=days_out)
         

@@ -35,6 +35,11 @@ class StudentProfile(Base):
     counsellor_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     target_score = Column(Integer, nullable=True)
     target_test_date = Column(Date, nullable=True)
+    xp_points = Column(Integer, default=0)
+    streak_days = Column(Integer, default=0)
+    last_active_date = Column(Date, nullable=True)
+    learning_style = Column(String(100), default="Visual & Practical")
+    preferred_study_time = Column(String(100), default="Evening (6 PM - 9 PM)")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -63,6 +68,9 @@ class Question(Base):
     correct_option = Column(String(255), nullable=False)  # 'A', 'B', 'C', 'D' or numeric text
     explanation = Column(Text, nullable=True)
     difficulty = Column(String(50), nullable=False)  # 'easy', 'medium', 'hard'
+    difficulty_score = Column(Integer, default=50)  # 1-100 scale for adaptive selecting
+    common_misconception = Column(Text, nullable=True)
+    related_concept = Column(Text, nullable=True)
     topic_id = Column(String(36), ForeignKey("topics.id", ondelete="SET NULL"), nullable=True)
     created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     is_approved = Column(Boolean, default=False)
@@ -144,6 +152,7 @@ class SessionAnswer(Base):
     is_correct = Column(Boolean, nullable=True)
     is_flagged = Column(Boolean, default=False)
     time_taken_seconds = Column(Integer, nullable=True)
+    mistake_type = Column(String(100), nullable=True)  # concept_error, calculation_error, reading_error, etc.
     answered_at = Column(DateTime, nullable=True)
 
     # Relationships

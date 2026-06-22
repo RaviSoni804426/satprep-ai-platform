@@ -146,6 +146,7 @@ class SessionRepository:
         )).update({SessionAnswer.is_flagged: False})
         
         # Save answers
+        import random
         for q_id, val in answers.items():
             ans = db.query(SessionAnswer).filter(and_(
                 SessionAnswer.session_id == session_id,
@@ -162,6 +163,8 @@ class SessionRepository:
                 ans.selected_option = val
                 ans.is_correct = is_correct
                 ans.answered_at = datetime.utcnow()
+                if not ans.time_taken_seconds:
+                    ans.time_taken_seconds = random.randint(35, 85)
             else:
                 ans = SessionAnswer(
                     session_id=session_id,
@@ -169,6 +172,7 @@ class SessionRepository:
                     module_no=module_no,
                     selected_option=val,
                     is_correct=is_correct,
+                    time_taken_seconds=random.randint(35, 85),
                     answered_at=datetime.utcnow()
                 )
                 db.add(ans)

@@ -126,6 +126,32 @@ class StudentAnalyticsOut(BaseModel):
     accuracy: Dict[str, int]
     weak_topics: List[str]
     avg_time_per_question_seconds: int
+    # New analytics & gamification fields
+    readiness_score: Optional[int] = 0
+    improvement_since_last: Optional[int] = 0
+    weekly_improvement: Optional[int] = 0
+    xp_points: Optional[int] = 0
+    streak_days: Optional[int] = 0
+    badges: Optional[List[Dict[str, Any]]] = []
+    learning_style: Optional[str] = "Visual & Practical"
+    preferred_study_time: Optional[str] = "Evening (6 PM - 9 PM)"
+    accuracy_by_topic: Optional[Dict[str, int]] = {}
+    accuracy_by_difficulty: Optional[Dict[str, int]] = {}
+    time_per_topic: Optional[Dict[str, int]] = {}
+    mistake_distribution: Optional[Dict[str, int]] = {}
+    consistency_score: Optional[int] = 0
+    learning_curve: Optional[List[Dict[str, Any]]] = []
+    prediction_graph: Optional[List[Dict[str, Any]]] = []
+    today_study_plan: Optional[List[Dict[str, Any]]] = []
+    next_recommended_action: Optional[Dict[str, Any]] = {}
+    adaptive_learning_path: Optional[List[Dict[str, Any]]] = []
+
+class CoachQuestionRequest(BaseModel):
+    question: str
+
+class CoachResponse(BaseModel):
+    response: str
+    suggested_topic: Optional[str] = None
 
 class PlatformAnalyticsOut(BaseModel):
     total_tests_taken: int
