@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../b
 from app.core.database import SessionLocal, Base, engine
 from app.core.security import get_password_hash
 from app.models.models import User, StudentProfile, Topic, Question, Test, TestModule, ModuleQuestion, SystemSetting
+from sqlalchemy import text
 
 def seed():
     print("Initializing database tables...")
