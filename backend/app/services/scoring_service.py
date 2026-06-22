@@ -72,21 +72,27 @@ class ScoringService:
             
         answers = SessionRepository.get_session_answers(db, session_id)
         
-        # Calculate raw counts
-        # Modules 1 and 2 are Reading/Writing
-        reading_answers = [a for a in answers if a.module_no in (1, 2)]
+        # Calculate raw counts based on topic subjects
+        reading_answers = []
+        math_answers = []
+        for ans in answers:
+            q = QuestionRepository.get_question_by_id(db, ans.question_id)
+            if q and q.topic:
+                if q.topic.subject == "reading":
+                    reading_answers.append(ans)
+                else:
+                    math_answers.append(ans)
+                    
         reading_raw = sum(1 for a in reading_answers if a.is_correct is True)
-        
-        # Modules 3 and 4 are Math
-        math_answers = [a for a in answers if a.module_no in (3, 4)]
         math_raw = sum(1 for a in math_answers if a.is_correct is True)
         
-        # Scale scores
-        reading_path = sess.module2_reading_difficulty or "easy"
-        math_path = sess.module2_math_difficulty or "easy"
+        # Scale scores rescaled from Ability Scores (0-1000) directly to standard 200-800 SAT scores
+        reading_scaled_raw = 200 + int(0.6 * (sess.ability_score_reading or 500))
+        math_scaled_raw = 200 + int(0.6 * (sess.ability_score_math or 500))
         
-        reading_scaled = ScoringService.scale_score(reading_raw, "reading", reading_path)
-        math_scaled = ScoringService.scale_score(math_raw, "math", math_path)
+        # Round to nearest 10 (standard SAT increment) and clamp
+        reading_scaled = max(200, min(800, round(reading_scaled_raw / 10) * 10))
+        math_scaled = max(200, min(800, round(math_scaled_raw / 10) * 10))
         
         total_score = reading_scaled + math_scaled
         band_low = max(400, total_score - 30)

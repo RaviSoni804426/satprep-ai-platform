@@ -143,6 +143,14 @@ class TestSession(Base):
     module2_math_difficulty = Column(String(50), nullable=True)  # 'easy', 'hard'
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    
+    # Adaptive CAT columns
+    ability_score = Column(Integer, default=500, nullable=False)
+    ability_score_reading = Column(Integer, default=500, nullable=False)
+    ability_score_math = Column(Integer, default=500, nullable=False)
+    current_question_no = Column(Integer, default=1, nullable=False)
+    questions_list = Column(JSON, nullable=True)
+    topic_counts = Column(JSON, nullable=True)
 
     # Relationships
     student = relationship("User", back_populates="sessions")
@@ -212,3 +220,27 @@ class Event(Base):
 
     # Relationships
     user = relationship("User", back_populates="events")
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    
+    key = Column(String(100), primary_key=True)
+    value = Column(JSON, nullable=False)
+    description = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class AdaptiveLog(Base):
+    __tablename__ = "adaptive_logs"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    session_id = Column(String(36), ForeignKey("test_sessions.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(String(36), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    question_number = Column(Integer, nullable=False)
+    ability_before = Column(Integer, nullable=False)
+    ability_after = Column(Integer, nullable=False)
+    question_difficulty = Column(Integer, nullable=False)
+    selection_reason = Column(Text, nullable=True)
+    topic_name = Column(String(255), nullable=True)
+    time_taken_seconds = Column(Integer, nullable=True)
+    is_correct = Column(Boolean, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

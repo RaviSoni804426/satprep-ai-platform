@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.schemas.schemas import TestOut, SessionStartOut, AnswerSubmit, ModuleSubmitOut, ScoreOut, SessionResumeOut
+from app.schemas.schemas import TestOut, SessionStartOut, AnswerSubmit, ScoreOut, SessionResumeOut, SubmitAnswerInput, SubmitAnswerOut
 from app.routers.deps import get_current_user, require_role
-from app.models.models import User, TestSession
+from app.models.models import User, TestSession, SessionAnswer
 from app.services.test_service import TestService
 from app.repository.db_repo import QuestionRepository, TestRepository, ScoreRepository, SessionRepository
 from app.tasks.scoring_task import process_score_and_recommendations
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 router = APIRouter(tags=["Tests & Sessions"])
@@ -19,15 +19,12 @@ def get_tests(current_user: User = Depends(get_current_user), db: Session = Depe
 
 @router.post("/tests/{test_id}/start", status_code=status.HTTP_201_CREATED, response_model=SessionStartOut)
 def start_test(test_id: str, current_user: User = Depends(require_role(["student"])), db: Session = Depends(get_db)):
-    sess, module, questions, msg = TestService.start_session(db, current_user.id, test_id)
+    sess, q_no, total_qs, time_limit, time_remaining, questions, msg = TestService.start_session(db, current_user.id, test_id)
     if msg == "TEST_NOT_FOUND":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TEST_NOT_FOUND")
-    elif msg == "MODULE_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MODULE_NOT_FOUND")
         
-    # Return module details and questions mapped to schema
     formatted_qs = []
-    for idx, q in enumerate(questions):
+    for q in questions:
         formatted_qs.append({
             "id": q.id,
             "body": q.body,
@@ -36,14 +33,16 @@ def start_test(test_id: str, current_user: User = Depends(require_role(["student
             "option_c": q.option_c,
             "option_d": q.option_d,
             "difficulty": q.difficulty,
-            "topic_id": q.topic_id
+            "topic_id": q.topic_id,
+            "subject": q.topic.subject if q.topic else "reading"
         })
         
     return {
         "session_id": sess.id,
-        "module_no": module.module_no,
-        "subject": module.subject,
-        "time_limit_seconds": module.time_limit_seconds,
+        "current_question_no": q_no,
+        "total_questions": total_qs,
+        "time_limit_seconds": time_limit,
+        "time_remaining": time_remaining,
         "questions": formatted_qs
     }
 
@@ -59,44 +58,47 @@ def save_answers(
         raise HTTPException(status_code=403, detail="SESSION_MISMATCH")
     return {"saved": True, "saved_at": datetime.utcnow().isoformat()}
 
-@router.post("/sessions/{session_id}/modules/{module_no}/submit", response_model=ModuleSubmitOut)
-def submit_module(
+@router.post("/sessions/{session_id}/submit-answer", response_model=SubmitAnswerOut)
+def submit_question_answer(
     session_id: str,
-    module_no: int,
+    data: SubmitAnswerInput,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(["student"])),
     db: Session = Depends(get_db)
 ):
-    next_module, questions, status_msg = TestService.submit_module(db, session_id, module_no)
-    if status_msg == "SESSION_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
-    elif status_msg == "MODULE_MISMATCH":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="SESSION_MISMATCH")
+    status_msg, next_q, q_no, code = TestService.submit_answer(
+        db, session_id, data.question_id, data.selected_option,
+        data.time_taken_seconds, data.is_flagged, data.time_remaining
+    )
+    if code == "SESSION_NOT_FOUND":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SESSION_NOT_FOUND")
         
-    if not next_module:
-        return {"module_submitted": module_no, "next_module": None}
+    if status_msg == "completed":
+        background_tasks.add_task(process_score_and_recommendations, session_id, current_user.id)
+        return {
+            "session_status": "completed",
+            "current_question_no": q_no,
+            "next_question": None
+        }
         
-    formatted_qs = []
-    for q in questions:
-        formatted_qs.append({
-            "id": q.id,
-            "body": q.body,
-            "option_a": q.option_a,
-            "option_b": q.option_b,
-            "option_c": q.option_c,
-            "option_d": q.option_d,
-            "difficulty": q.difficulty,
-            "topic_id": q.topic_id
-        })
+    formatted_next = None
+    if next_q:
+        formatted_next = {
+            "id": next_q.id,
+            "body": next_q.body,
+            "option_a": next_q.option_a,
+            "option_b": next_q.option_b,
+            "option_c": next_q.option_c,
+            "option_d": next_q.option_d,
+            "difficulty": next_q.difficulty,
+            "topic_id": next_q.topic_id,
+            "subject": next_q.topic.subject if next_q.topic else "reading"
+        }
         
     return {
-        "module_submitted": module_no,
-        "next_module": {
-            "module_no": next_module.module_no,
-            "subject": next_module.subject,
-            "difficulty": next_module.difficulty,
-            "time_limit_seconds": next_module.time_limit_seconds,
-            "questions": formatted_qs
-        }
+        "session_status": "in_progress",
+        "current_question_no": q_no,
+        "next_question": formatted_next
     }
 
 @router.post("/sessions/{session_id}/submit", status_code=status.HTTP_202_ACCEPTED)
@@ -110,7 +112,6 @@ def submit_test(
     if not success:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SESSION_ALREADY_COMPLETED")
         
-    # Queue score calculation and recommendation generation
     background_tasks.add_task(process_score_and_recommendations, session_id, current_user.id)
     
     return {
@@ -133,19 +134,16 @@ def get_score(
         if sess.status == "in_progress":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SESSION_IN_PROGRESS")
             
-        # Score calculation is still processing
         raise HTTPException(
             status_code=status.HTTP_202_ACCEPTED,
             detail="SCORE_PROCESSING"
         )
         
-    # Verify authorization: student can only view own score, counsellors can view assigned, admin can view all
     if current_user.role == "student" and sess.student_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
     elif current_user.role == "counsellor":
-        # Check student assignment
-        student_profile = sess.student.profile
-        if not student_profile or student_profile.counsellor_id != current_user.id:
+        profile = sess.student.profile
+        if not profile or profile.counsellor_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
             
     return score
@@ -161,10 +159,7 @@ def resume_session(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NO_ACTIVE_SESSION")
     elif status_msg == "SESSION_NOT_IN_PROGRESS":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SESSION_NOT_IN_PROGRESS")
-    elif status_msg == "MODULE_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MODULE_NOT_FOUND")
         
-    # Verify ownership
     sess = SessionRepository.get_session_by_id(db, session_id)
     if sess.student_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
@@ -179,11 +174,13 @@ def resume_session(
             "option_c": q.option_c,
             "option_d": q.option_d,
             "difficulty": q.difficulty,
-            "topic_id": q.topic_id
+            "topic_id": q.topic_id,
+            "subject": q.topic.subject if q.topic else "reading"
         })
         
     return {
-        "current_module": state["current_module"],
+        "current_question_no": state["current_question_no"],
+        "total_questions": state["total_questions"],
         "time_remaining": state["time_remaining"],
         "answers": state["answers"],
         "flagged": state["flagged"],
@@ -202,7 +199,6 @@ def get_session_review(
     if sess.status != "completed":
         raise HTTPException(status_code=400, detail="SESSION_NOT_COMPLETED")
 
-    # Auth checks
     if current_user.role == "student" and sess.student_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
     elif current_user.role == "counsellor":
@@ -215,7 +211,6 @@ def get_session_review(
     for ans in answers:
         q = QuestionRepository.get_question_by_id(db, ans.question_id)
         if q:
-            # Fallback values for misconceptions and related concepts if not set in db
             fallback_misconceptions = {
                 "Information & Ideas": "Misinterpreting text evidence or over-generalizing details.",
                 "Craft & Structure": "Conflating tone with character intent or vocabulary definitions.",

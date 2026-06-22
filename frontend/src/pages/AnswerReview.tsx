@@ -176,10 +176,7 @@ const AnswerReview: React.FC = () => {
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
                     <div className="flex items-center gap-2">
                       <span className="font-extrabold text-slate-200 text-sm">Question {idx + 1}</span>
-                      <span className="px-2 py-0.5 bg-slate-950 border border-slate-800 text-slate-400 rounded text-[9px] font-bold uppercase">
-                        Mod {item.module_no}
-                      </span>
-                      <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-455 rounded text-[9px] font-bold uppercase">
+                      <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded text-[9px] font-bold uppercase">
                         {item.subject}
                       </span>
                       <span className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded text-[9px] font-bold uppercase">

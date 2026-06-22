@@ -124,10 +124,23 @@ class AnalyticsService:
                 ])
         db.commit()
         
-        reading_correct = sum(1 for a in answers if a.module_no in (1, 2) and a.is_correct is True)
-        reading_total = sum(1 for a in answers if a.module_no in (1, 2) and a.selected_option is not None)
-        math_correct = sum(1 for a in answers if a.module_no in (3, 4) and a.is_correct is True)
-        math_total = sum(1 for a in answers if a.module_no in (3, 4) and a.selected_option is not None)
+        reading_correct = 0
+        reading_total = 0
+        math_correct = 0
+        math_total = 0
+        for a in answers:
+            q = db.query(Question).filter(Question.id == a.question_id).first()
+            if q and q.topic:
+                if q.topic.subject == "reading":
+                    if a.selected_option is not None:
+                        reading_total += 1
+                        if a.is_correct is True:
+                            reading_correct += 1
+                else:
+                    if a.selected_option is not None:
+                        math_total += 1
+                        if a.is_correct is True:
+                            math_correct += 1
         
         accuracy = {
             "reading": int((reading_correct / reading_total) * 100) if reading_total > 0 else 0,

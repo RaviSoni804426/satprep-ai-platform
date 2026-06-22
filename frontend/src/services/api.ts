@@ -63,6 +63,7 @@ export const api = {
     start: (testId: string) => apiFetch(`/tests/${testId}/start`, { method: "POST" }),
     saveAnswers: (sessionId: string, body: any) => apiFetch(`/sessions/${sessionId}/answers`, { method: "POST", body: JSON.stringify(body) }),
     submitModule: (sessionId: string, moduleNo: number) => apiFetch(`/sessions/${sessionId}/modules/${moduleNo}/submit`, { method: "POST" }),
+    submitAnswer: (sessionId: string, body: any) => apiFetch(`/sessions/${sessionId}/submit-answer`, { method: "POST", body: JSON.stringify(body) }),
     submitTest: (sessionId: string) => apiFetch(`/sessions/${sessionId}/submit`, { method: "POST" }),
     getScore: (sessionId: string) => apiFetch(`/sessions/${sessionId}/score`),
     resume: (sessionId: string) => apiFetch(`/sessions/${sessionId}/resume`),
@@ -97,7 +98,10 @@ export const api = {
     reactivateUser: (userId: string, notes?: string) => apiFetch(`/admin/users/${userId}/reactivate`, { method: "POST", body: JSON.stringify({ notes }) }),
     updateUserRole: (userId: string, role: string) => apiFetch(`/admin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
     getAdminSummary: () => apiFetch("/admin/users/summary"),
-    deleteUser: (userId: string) => apiFetch(`/admin/users/${userId}`, { method: "DELETE" })
+    deleteUser: (userId: string) => apiFetch(`/admin/users/${userId}`, { method: "DELETE" }),
+    getAdaptiveSettings: () => apiFetch("/admin/adaptive-settings"),
+    updateAdaptiveSettings: (body: any) => apiFetch("/admin/adaptive-settings", { method: "PUT", body: JSON.stringify(body) }),
+    getAdaptiveLogs: (sessionId: string) => apiFetch(`/admin/adaptive-logs/${sessionId}`)
   },
   counsellor: {
     students: () => apiFetch("/counsellor/students")

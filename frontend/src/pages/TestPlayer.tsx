@@ -24,6 +24,7 @@ const TestPlayer: React.FC = () => {
 
   // Core state
   const [currentModuleNo, setCurrentModuleNo] = useState(1);
+  const [totalQuestions, setTotalQuestions] = useState(30);
   const [subject, setSubject] = useState("reading");
   const [timeRemaining, setTimeRemaining] = useState(1920);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -51,6 +52,7 @@ const TestPlayer: React.FC = () => {
   const answersRef = useRef(answers);
   const flaggedRef = useRef(flagged);
   const timeRemainingRef = useRef(timeRemaining);
+  const lastQuestionStartTime = useRef<number>(Date.now());
 
   useEffect(() => {
     answersRef.current = answers;
@@ -70,17 +72,19 @@ const TestPlayer: React.FC = () => {
       setLoading(true);
       const data = await api.tests.resume(session_id);
       
-      setCurrentModuleNo(data.current_module);
+      setCurrentModuleNo(data.current_module || 1);
+      setTotalQuestions(data.total_questions || 30);
       setTimeRemaining(data.time_remaining);
       setAnswers(data.answers || {});
       setFlagged(data.flagged || []);
       setQuestions(data.questions || []);
-      setCurrentIndex(0);
       
-      if (data.current_module <= 2) {
-        setSubject("reading");
-      } else {
-        setSubject("math");
+      const lastIndex = data.questions ? data.questions.length - 1 : 0;
+      setCurrentIndex(Math.max(0, lastIndex));
+      
+      if (data.questions && data.questions.length > 0) {
+        const lastQ = data.questions[Math.max(0, lastIndex)];
+        setSubject(lastQ.subject || "reading");
       }
     } catch (err: any) {
       console.error(err);
@@ -90,6 +94,18 @@ const TestPlayer: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (questions[currentIndex]) {
+      setSubject(questions[currentIndex].subject || "reading");
+    }
+  }, [currentIndex, questions]);
+
+  useEffect(() => {
+    if (currentIndex === questions.length - 1) {
+      lastQuestionStartTime.current = Date.now();
+    }
+  }, [currentIndex, questions.length]);
 
   useEffect(() => {
     loadSessionState();
@@ -133,9 +149,19 @@ const TestPlayer: React.FC = () => {
     setTimeRemaining(remaining);
   };
 
-  const handleTimeUp = () => {
-    alert("Time is up for this module! Calibrating adaptive next steps.");
-    handleSubmitModule(true);
+  const handleTimeUp = async () => {
+    alert("Time is up! Submitting your exam.");
+    try {
+      setLoading(true);
+      await api.tests.submitTest(session_id!);
+      localStorage.removeItem("active_session_id");
+      navigate(`/sessions/${session_id}/score`);
+    } catch (err: any) {
+      console.error(err);
+      navigate("/dashboard");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleFlag = (qId: string) => {
@@ -178,57 +204,61 @@ const TestPlayer: React.FC = () => {
     return highlighted;
   };
 
-  const handleSubmitModule = async (force = false) => {
-    if (!session_id) return;
-    if (!force && !window.confirm("Are you sure you want to submit this module? You cannot return to it.")) {
+  const handleNextOrSubmit = async () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
       return;
     }
+
+    const currentQuestion = questions[currentIndex];
+    const answer = answers[currentQuestion.id] || "";
     
+    if (!answer) {
+      alert("Please select or enter an answer before proceeding.");
+      return;
+    }
+
     try {
       setLoading(true);
-      await saveProgress();
-
-      // Intermediate adaptive calibration calculations
-      const answeredCount = Object.keys(answers).length;
-      const totalCount = questions.length;
-      const accuracyEst = Math.round((answeredCount / totalCount) * 85); // Estimated baseline accuracy
-      const speedEst = Math.round(answeredCount > 0 ? (1920 - timeRemaining) / answeredCount : 45);
+      const timeTaken = Math.max(1, lastQuestionStartTime.current ? Math.round((Date.now() - lastQuestionStartTime.current) / 1000) : 15);
       
-      setIsCalibrating(true);
-      setCalibrationData({
-        answered: answeredCount,
-        total: totalCount,
-        accuracy: accuracyEst,
-        speed: speedEst,
-        subject: subject.toUpperCase(),
-        module: currentModuleNo
-      });
+      const payload = {
+        question_id: currentQuestion.id,
+        selected_option: answer,
+        time_taken_seconds: timeTaken,
+        is_flagged: flagged.includes(currentQuestion.id),
+        time_remaining: timeRemaining
+      };
 
-      // Wait 3.5 seconds to show scoring and ability updates (Theta score)
-      await new Promise(resolve => setTimeout(resolve, 3500));
+      const data = await api.tests.submitAnswer(session_id!, payload);
 
-      const data = await api.tests.submitModule(session_id, currentModuleNo);
-      setIsCalibrating(false);
-
-      if (data.next_module) {
-        setCurrentModuleNo(data.next_module.module_no);
-        setTimeRemaining(data.next_module.time_limit_seconds);
-        setAnswers({});
-        setFlagged([]);
-        setQuestions(data.next_module.questions || []);
-        setSubject(data.next_module.subject);
-        setCurrentIndex(0);
-        setHighlights([]);
-      } else {
-        await api.tests.submitTest(session_id);
+      if (data.session_status === "completed") {
         localStorage.removeItem("active_session_id");
         navigate(`/sessions/${session_id}/score`);
+      } else if (data.next_question) {
+        setQuestions(prev => [...prev, data.next_question]);
+        setCurrentIndex(prev => prev + 1);
       }
     } catch (err: any) {
-      setIsCalibrating(false);
-      alert(err.message || "Failed to submit module");
+      console.error(err);
+      alert(err.message || "Failed to submit answer.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEndExamEarly = async () => {
+    if (window.confirm("Are you sure you want to end your exam early? Your score will be calculated based on the questions you have answered so far.")) {
+      try {
+        setLoading(true);
+        await api.tests.submitTest(session_id!);
+        localStorage.removeItem("active_session_id");
+        navigate(`/sessions/${session_id}/score`);
+      } catch (err: any) {
+        alert(err.message || "Failed to submit exam.");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -300,10 +330,10 @@ const TestPlayer: React.FC = () => {
               Standard Instructions
             </h3>
             <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
-              <li>This test has 4 modules (Reading 1 & 2, Math 3 & 4).</li>
-              <li>Once you submit a module, you **cannot** return to edit answers.</li>
-              <li>The math modules support multiple choice or open-ended numbers (SPR).</li>
-              <li>Calculators and formula references are accessible inside math modules.</li>
+              <li>This is a real-time question-by-question adaptive Computerized Adaptive Test (CAT).</li>
+              <li>Your ability score is recalculated after every answer, and the next question adapts to your performance.</li>
+              <li>Once you submit an answer, you can navigate back to view it, but your response will be locked.</li>
+              <li>The exam supports math calculators and formula sheets dynamically on math questions.</li>
             </ul>
           </div>
 
@@ -380,7 +410,7 @@ const TestPlayer: React.FC = () => {
         <div className="flex items-center gap-3">
           <span className="font-extrabold text-slate-100 text-sm sm:text-base">Digital SAT Mock Sandbox</span>
           <span className="px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold rounded uppercase">
-            Section: {subject.toUpperCase()} (Module {currentModuleNo})
+            Section: {subject.toUpperCase()}
           </span>
           <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 text-slate-500 text-[10px] rounded border border-slate-805">
             <span className={`w-1.5 h-1.5 rounded-full ${autoSavePulse ? 'bg-indigo-400 animate-ping' : 'bg-slate-700'}`} />
@@ -421,6 +451,12 @@ const TestPlayer: React.FC = () => {
           )}
         </div>
       </header>
+      <div className="w-full bg-slate-900 h-1.5 overflow-hidden">
+        <div 
+          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
+          style={{ width: `${Math.round(((currentIndex + 1) / totalQuestions) * 100)}%` }}
+        />
+      </div>
 
       {/* Main Question Panel */}
       <main className="flex-1 flex overflow-hidden p-6 max-w-7xl mx-auto w-full gap-6">
@@ -456,7 +492,7 @@ const TestPlayer: React.FC = () => {
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-y-auto flex flex-col justify-between shadow-lg">
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="font-bold text-slate-500 text-xs uppercase tracking-wide">Question {currentIndex + 1} of {questions.length}</span>
+                  <span className="font-bold text-slate-500 text-xs uppercase tracking-wide">Question {currentIndex + 1} of {totalQuestions}</span>
                   <button
                     onClick={() => toggleFlag(currentQuestion.id)}
                     className={`flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-xl border transition-colors ${
@@ -479,15 +515,21 @@ const TestPlayer: React.FC = () => {
                   {["A", "B", "C", "D"].map(opt => {
                     const optKey = `option_${opt.toLowerCase()}` as "option_a" | "option_b" | "option_c" | "option_d";
                     const isSelected = answers[currentQuestion.id] === opt;
+                    const isLocked = currentIndex < questions.length - 1;
                     return (
                       <button
                         key={opt}
-                        onClick={() => selectOption(currentQuestion.id, opt)}
+                        disabled={isLocked}
+                        onClick={() => {
+                          if (!isLocked) {
+                            selectOption(currentQuestion.id, opt);
+                          }
+                        }}
                         className={`w-full text-left p-4 rounded-xl border flex items-start gap-3 transition-colors ${
                           isSelected
                             ? "bg-indigo-650/10 border-indigo-500 text-slate-100 font-semibold shadow-inner"
                             : "bg-slate-950/40 border-slate-800/80 text-slate-350 hover:bg-slate-900/60"
-                        }`}
+                        } ${isLocked ? "opacity-75 cursor-not-allowed" : ""}`}
                       >
                         <span className={`w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                           isSelected ? "bg-indigo-650 text-white border-indigo-500" : "bg-slate-900 border-slate-700 text-slate-400"
@@ -508,7 +550,7 @@ const TestPlayer: React.FC = () => {
             <div className="flex-1 bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-y-auto flex flex-col justify-between shadow-lg">
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="font-bold text-slate-500 text-xs uppercase tracking-wide">Question {currentIndex + 1} of {questions.length}</span>
+                  <span className="font-bold text-slate-500 text-xs uppercase tracking-wide">Question {currentIndex + 1} of {totalQuestions}</span>
                   <button
                     onClick={() => toggleFlag(currentQuestion.id)}
                     className={`flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-xl border transition-colors ${
@@ -533,9 +575,11 @@ const TestPlayer: React.FC = () => {
                     <input
                       type="text"
                       value={answers[currentQuestion.id] || ""}
+                      disabled={currentIndex < questions.length - 1}
+                      readOnly={currentIndex < questions.length - 1}
                       onChange={e => selectOption(currentQuestion.id, e.target.value)}
-                      placeholder="e.g. 1.25 or 5/4"
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold text-lg text-slate-100"
+                      placeholder={currentIndex < questions.length - 1 ? "Locked" : "e.g. 1.25 or 5/4"}
+                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold text-lg text-slate-100 disabled:opacity-75 disabled:cursor-not-allowed"
                     />
                   </div>
                 ) : (
@@ -544,15 +588,21 @@ const TestPlayer: React.FC = () => {
                     {["A", "B", "C", "D"].map(opt => {
                       const optKey = `option_${opt.toLowerCase()}` as "option_a" | "option_b" | "option_c" | "option_d";
                       const isSelected = answers[currentQuestion.id] === opt;
+                      const isLocked = currentIndex < questions.length - 1;
                       return (
                         <button
                           key={opt}
-                          onClick={() => selectOption(currentQuestion.id, opt)}
+                          disabled={isLocked}
+                          onClick={() => {
+                            if (!isLocked) {
+                              selectOption(currentQuestion.id, opt);
+                            }
+                          }}
                           className={`w-full text-left p-4 rounded-xl border flex items-start gap-3 transition-colors ${
                             isSelected
                               ? "bg-indigo-650/10 border-indigo-500 text-slate-100 font-semibold shadow-inner"
                               : "bg-slate-950/40 border-slate-800/80 text-slate-350 hover:bg-slate-900/60"
-                          }`}
+                          } ${isLocked ? "opacity-75 cursor-not-allowed" : ""}`}
                         >
                           <span className={`w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                             isSelected ? "bg-indigo-650 text-white border-indigo-500" : "bg-slate-900 border-slate-700 text-slate-400"
@@ -584,12 +634,23 @@ const TestPlayer: React.FC = () => {
               Previous
             </button>
             <button
-              onClick={() => setCurrentIndex(prev => Math.min(questions.length - 1, prev + 1))}
-              disabled={currentIndex === questions.length - 1}
-              className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center gap-1 font-semibold text-xs disabled:opacity-30 transition-colors"
+              onClick={handleNextOrSubmit}
+              disabled={currentIndex === questions.length - 1 && !answers[currentQuestion.id]}
+              className="px-4 py-2 bg-indigo-600 border border-indigo-500 rounded-xl text-white hover:bg-indigo-500 flex items-center gap-1 font-semibold text-xs disabled:opacity-30 transition-colors"
             >
-              Next
-              <ChevronRight className="w-4 h-4" />
+              {currentIndex < questions.length - 1 ? (
+                <>
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              ) : currentIndex === totalQuestions - 1 ? (
+                "Submit Exam"
+              ) : (
+                <>
+                  Submit & Next
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
 
@@ -622,10 +683,10 @@ const TestPlayer: React.FC = () => {
           </div>
 
           <button
-            onClick={() => handleSubmitModule(false)}
-            className="px-5 py-2.5 bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl text-xs shadow-md shadow-indigo-500/10 transition-all duration-150"
+            onClick={handleEndExamEarly}
+            className="px-5 py-2.5 bg-gradient-to-tr from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-extrabold rounded-xl text-xs shadow-md shadow-amber-500/10 transition-all duration-150"
           >
-            Submit Module
+            End Exam Early
           </button>
         </div>
       </footer>

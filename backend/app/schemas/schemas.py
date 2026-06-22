@@ -55,6 +55,7 @@ class QuestionOut(BaseModel):
     option_d: Optional[str] = None
     difficulty: str
     topic_id: Optional[str] = None
+    subject: str
     
 class QuestionCreate(BaseModel):
     body: str
@@ -77,9 +78,10 @@ class TestOut(BaseModel):
     
 class SessionStartOut(BaseModel):
     session_id: str
-    module_no: int
-    subject: str
+    current_question_no: int
+    total_questions: int
     time_limit_seconds: int
+    time_remaining: int
     questions: List[QuestionOut]
 
 class AnswerSubmit(BaseModel):
@@ -87,16 +89,50 @@ class AnswerSubmit(BaseModel):
     flagged: List[str]
     time_remaining: int
 
-class NextModuleDetails(BaseModel):
-    module_no: int
-    subject: str
-    difficulty: str
-    time_limit_seconds: int
-    questions: List[QuestionOut]
+class SubmitAnswerInput(BaseModel):
+    question_id: str
+    selected_option: Optional[str] = None
+    time_taken_seconds: int = 0
+    is_flagged: bool = False
+    time_remaining: int
 
-class ModuleSubmitOut(BaseModel):
-    module_submitted: int
-    next_module: Optional[NextModuleDetails] = None
+class SubmitAnswerOut(BaseModel):
+    session_status: str  # 'in_progress', 'completed'
+    current_question_no: int
+    next_question: Optional[QuestionOut] = None
+
+class AdaptiveSettingsOut(BaseModel):
+    total_questions: int
+    time_limit_seconds: int
+    initial_ability_score: int
+    min_difficulty: int
+    max_difficulty: int
+    adaptive_sensitivity: float
+    min_difficulty_change: int
+    max_difficulty_change: int
+    question_exposure_limit: int
+    blueprint: Dict[str, int]
+
+class AdaptiveSettingsUpdate(BaseModel):
+    total_questions: Optional[int] = None
+    time_limit_seconds: Optional[int] = None
+    adaptive_sensitivity: Optional[float] = None
+    min_difficulty_change: Optional[int] = None
+    max_difficulty_change: Optional[int] = None
+    blueprint: Optional[Dict[str, int]] = None
+
+class AdaptiveLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    question_number: int
+    topic_name: Optional[str] = None
+    question_difficulty: int
+    is_correct: Optional[bool] = None
+    ability_before: int
+    ability_after: int
+    selection_reason: Optional[str] = None
+    time_taken_seconds: Optional[int] = None
+    created_at: datetime
 
 class ScoreOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -112,7 +148,8 @@ class ScoreOut(BaseModel):
     skill_breakdown: Dict[str, int]
     
 class SessionResumeOut(BaseModel):
-    current_module: int
+    current_question_no: int
+    total_questions: int
     time_remaining: int
     answers: Dict[str, str]
     flagged: List[str]

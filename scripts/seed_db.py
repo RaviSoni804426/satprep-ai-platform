@@ -1,20 +1,19 @@
 import sys
 import os
 import uuid
+import random
 
 # Add the backend directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../backend")))
 
 from app.core.database import SessionLocal, Base, engine
 from app.core.security import get_password_hash
-from app.models.models import User, StudentProfile, Topic, Question, Test, TestModule, ModuleQuestion
+from app.models.models import User, StudentProfile, Topic, Question, Test, TestModule, ModuleQuestion, SystemSetting
 
 def seed():
     print("Initializing database tables...")
     Base.metadata.create_all(bind=engine)
     
-    # Run migration queries to add new columns if they do not exist
-    from sqlalchemy import text
     print("Migrating database schema for user approvals...")
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) NOT NULL DEFAULT 'Pending'"))
@@ -27,7 +26,50 @@ def seed():
         
         # Ensure default test users are Approved
         conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com', 'kumarsoniravi705@gmail.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
+        
+        # System Settings Table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key VARCHAR(100) PRIMARY KEY,
+                value TEXT NOT NULL,
+                description VARCHAR(255),
+                updated_at TIMESTAMP
+            )
+        """))
+        
+        # Adaptive Logs Table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS adaptive_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                session_id VARCHAR(36) NOT NULL,
+                question_id VARCHAR(36) NOT NULL,
+                question_number INTEGER NOT NULL,
+                ability_before INTEGER NOT NULL,
+                ability_after INTEGER NOT NULL,
+                question_difficulty INTEGER NOT NULL,
+                selection_reason TEXT,
+                topic_name VARCHAR(255),
+                time_taken_seconds INTEGER,
+                is_correct BOOLEAN,
+                created_at TIMESTAMP
+            )
+        """))
         conn.commit()
+
+    # Run test_sessions alters safely
+    for col, ctype in [
+        ("ability_score", "INTEGER DEFAULT 500"),
+        ("ability_score_reading", "INTEGER DEFAULT 500"),
+        ("ability_score_math", "INTEGER DEFAULT 500"),
+        ("current_question_no", "INTEGER DEFAULT 1"),
+        ("questions_list", "TEXT"),
+        ("topic_counts", "TEXT")
+    ]:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE test_sessions ADD COLUMN {col} {ctype}"))
+        except Exception:
+            pass # Column already exists
 
     print("Seeding database...")
     db = SessionLocal()
@@ -187,6 +229,13 @@ def seed():
 
         print(f"Generating {count} questions for module {subject} No. {module_obj.module_no} ({diff})...")
         for i in range(1, count + 1):
+            if diff == "easy":
+                diff_score = random.randint(15, 35)
+            elif diff == "medium":
+                diff_score = random.randint(40, 60)
+            else:
+                diff_score = random.randint(65, 90)
+
             if subject == "reading":
                 # Create a Reading question
                 topic_name = "Information and Ideas" if i % 2 == 0 else "Craft and Structure"
@@ -206,6 +255,7 @@ def seed():
                     correct_option=correct,
                     explanation=f"Choice {correct} is correct because the passage details the mechanism of rapid epigenetic shifts responding to environmental temperature variations.",
                     difficulty=diff,
+                    difficulty_score=diff_score,
                     topic_id=topic.id,
                     created_by=admin.id,
                     is_approved=True
@@ -230,6 +280,7 @@ def seed():
                         correct_option=val,
                         explanation=f"Solving the linear equation: add 5 to both sides and divide by 3 to isolate x, giving x = {val}.",
                         difficulty=diff,
+                        difficulty_score=diff_score,
                         topic_id=topic.id,
                         created_by=admin.id,
                         is_approved=True
@@ -254,6 +305,7 @@ def seed():
                         correct_option=correct,
                         explanation=f"Substituting x = 4 into the function gives {i}(4) + 10 = {ans_val}, which corresponds to choice {correct}.",
                         difficulty=diff,
+                        difficulty_score=diff_score,
                         topic_id=topic.id,
                         created_by=admin.id,
                         is_approved=True
@@ -279,6 +331,62 @@ def seed():
     generate_and_link_questions(modules["math_3_standard"], 22, "math", "medium")
     generate_and_link_questions(modules["math_4_easy"], 22, "math", "easy")
     generate_and_link_questions(modules["math_4_hard"], 22, "math", "hard")
+
+    # Bulk update question difficulty scores for existing questions
+    print("Updating calibrated difficulty scores on questions...")
+    all_qs = db.query(Question).all()
+    for q in all_qs:
+        if q.difficulty == "easy" and (q.difficulty_score == 50 or not q.difficulty_score):
+            q.difficulty_score = random.randint(15, 35)
+        elif q.difficulty == "medium" and (q.difficulty_score == 50 or not q.difficulty_score):
+            q.difficulty_score = random.randint(40, 60)
+        elif q.difficulty == "hard" and (q.difficulty_score == 50 or not q.difficulty_score):
+            q.difficulty_score = random.randint(65, 90)
+    db.commit()
+
+    # Seed default adaptive config setting
+    adaptive_config = db.query(SystemSetting).filter(SystemSetting.key == "adaptive_config").first()
+    if not adaptive_config:
+        adaptive_config = SystemSetting(
+            key="adaptive_config",
+            value={
+                "total_questions": 30,
+                "time_limit_seconds": 2400,
+                "initial_ability_score": 500,
+                "min_difficulty": 1,
+                "max_difficulty": 100,
+                "adaptive_sensitivity": 1.0,
+                "min_difficulty_change": 2,
+                "max_difficulty_change": 15,
+                "question_exposure_limit": 100
+            },
+            description="Global Computerized Adaptive Testing (CAT) parameters"
+        )
+        db.add(adaptive_config)
+        db.commit()
+        print("Seeded default adaptive_config.")
+        
+    # Seed default blueprint config setting
+    blueprint_config = db.query(SystemSetting).filter(SystemSetting.key == "blueprint_config").first()
+    if not blueprint_config:
+        blueprint_config = SystemSetting(
+            key="blueprint_config",
+            value={
+                "Information and Ideas": 4,
+                "Craft and Structure": 4,
+                "Expression of Ideas": 3,
+                "Standard English Conventions": 3,
+                "Linear Equations and Functions": 4,
+                "Systems of Linear Equations": 3,
+                "Quadratic and Exponential Functions": 3,
+                "Ratios, Rates, and Proportions": 3,
+                "Geometry and Trigonometry": 3
+            },
+            description="Digital SAT Question-by-Question Blueprint target distributions"
+        )
+        db.add(blueprint_config)
+        db.commit()
+        print("Seeded default blueprint_config.")
 
     db.close()
     print("Database seeding completed!")

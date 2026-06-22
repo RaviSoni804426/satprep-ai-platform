@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.schemas.schemas import QuestionOut, QuestionCreate, RosterStudentOut
+from app.schemas.schemas import QuestionOut, QuestionCreate, RosterStudentOut, AdaptiveSettingsOut, AdaptiveSettingsUpdate, AdaptiveLogOut
 from app.routers.deps import require_role
-from app.models.models import User, Question, Topic, StudentProfile, TestScore, TestSession
+from app.models.models import User, Question, Topic, StudentProfile, TestScore, TestSession, SystemSetting, AdaptiveLog
 from app.repository.db_repo import QuestionRepository, UserRepository
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -396,3 +396,60 @@ def delete_user(
     db.commit()
     
     return {"message": "User deleted successfully", "user_id": user_id}
+
+@router.get("/admin/adaptive-settings", response_model=AdaptiveSettingsOut)
+def get_adaptive_settings(
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    config_entry = db.query(SystemSetting).filter(SystemSetting.key == "adaptive_config").first()
+    blueprint_entry = db.query(SystemSetting).filter(SystemSetting.key == "blueprint_config").first()
+    
+    if not config_entry or not blueprint_entry:
+        raise HTTPException(status_code=500, detail="Default configurations not seeded.")
+        
+    res = {**config_entry.value, "blueprint": blueprint_entry.value}
+    return res
+
+@router.put("/admin/adaptive-settings", response_model=AdaptiveSettingsOut)
+def update_adaptive_settings(
+    data: AdaptiveSettingsUpdate,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    config_entry = db.query(SystemSetting).filter(SystemSetting.key == "adaptive_config").first()
+    blueprint_entry = db.query(SystemSetting).filter(SystemSetting.key == "blueprint_config").first()
+    
+    if not config_entry or not blueprint_entry:
+        raise HTTPException(status_code=500, detail="Default configurations not seeded.")
+        
+    config_val = config_entry.value.copy()
+    if data.total_questions is not None:
+        config_val["total_questions"] = data.total_questions
+    if data.time_limit_seconds is not None:
+        config_val["time_limit_seconds"] = data.time_limit_seconds
+    if data.adaptive_sensitivity is not None:
+        config_val["adaptive_sensitivity"] = data.adaptive_sensitivity
+    if data.min_difficulty_change is not None:
+        config_val["min_difficulty_change"] = data.min_difficulty_change
+    if data.max_difficulty_change is not None:
+        config_val["max_difficulty_change"] = data.max_difficulty_change
+        
+    config_entry.value = config_val
+    
+    if data.blueprint is not None:
+        blueprint_entry.value = data.blueprint
+        
+    db.commit()
+    
+    res = {**config_entry.value, "blueprint": blueprint_entry.value}
+    return res
+
+@router.get("/admin/adaptive-logs/{session_id}", response_model=List[AdaptiveLogOut])
+def get_adaptive_logs(
+    session_id: str,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    logs = db.query(AdaptiveLog).filter(AdaptiveLog.session_id == session_id).order_by(AdaptiveLog.question_number).all()
+    return logs

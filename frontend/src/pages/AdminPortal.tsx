@@ -11,7 +11,7 @@ const AdminPortal: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<"users" | "questions" | "analytics" | "reports">("analytics");
+  const [activeTab, setActiveTab] = useState<"users" | "questions" | "analytics" | "reports" | "adaptive">("analytics");
   const [loading, setLoading] = useState(false);
 
   // Users tab state
@@ -27,6 +27,17 @@ const AdminPortal: React.FC = () => {
   const [actionNotes, setActionNotes] = useState("");
   const [actionReason, setActionReason] = useState("");
   const [adminSummary, setAdminSummary] = useState<any>(null);
+
+  // Adaptive settings & log inspection state
+  const [inspectSessionId, setInspectSessionId] = useState("");
+  const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
+  const [totalQuestions, setTotalQuestions] = useState(30);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState(2400);
+  const [initialAbility, setInitialAbility] = useState(500);
+  const [sensitivity, setSensitivity] = useState(1.0);
+  const [minDiffChange, setMinDiffChange] = useState(2);
+  const [maxDiffChange, setMaxDiffChange] = useState(15);
+  const [blueprint, setBlueprint] = useState<Record<string, number>>({});
 
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm("Are you sure you want to permanently delete this user account? This action cannot be undone.")) return;
@@ -78,9 +89,57 @@ const AdminPortal: React.FC = () => {
       } else if (activeTab === "analytics") {
         const data = await api.analytics.getPlatform();
         setPlatformStats(data);
+      } else if (activeTab === "adaptive") {
+        const settingsData = await api.admin.getAdaptiveSettings();
+        setTotalQuestions(settingsData.total_questions || 30);
+        setTimeLimitSeconds(settingsData.time_limit_seconds || 2400);
+        setInitialAbility(settingsData.initial_ability_score || 500);
+        setSensitivity(settingsData.adaptive_sensitivity || 1.0);
+        setMinDiffChange(settingsData.min_difficulty_change || 2);
+        setMaxDiffChange(settingsData.max_difficulty_change || 15);
+        setBlueprint(settingsData.blueprint || {});
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFetchAdaptiveLogs = async () => {
+    if (!inspectSessionId) return;
+    setLoading(true);
+    try {
+      const logs = await api.admin.getAdaptiveLogs(inspectSessionId);
+      setAuditLogs(logs || []);
+    } catch (err: any) {
+      alert(err.message || "Failed to fetch adaptive logs");
+      setAuditLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateAdaptiveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const payload = {
+        total_questions: totalQuestions,
+        time_limit_seconds: timeLimitSeconds,
+        initial_ability_score: initialAbility,
+        min_difficulty: 1,
+        max_difficulty: 100,
+        adaptive_sensitivity: sensitivity,
+        min_difficulty_change: minDiffChange,
+        max_difficulty_change: maxDiffChange,
+        question_exposure_limit: 100,
+        blueprint
+      };
+      await api.admin.updateAdaptiveSettings(payload);
+      alert("Adaptive configurations updated successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to update adaptive settings");
     } finally {
       setLoading(false);
     }
@@ -272,6 +331,16 @@ const AdminPortal: React.FC = () => {
           >
             <FileDown className="w-5 h-5" />
             Report Exporter
+          </button>
+
+          <button
+            onClick={() => setActiveTab("adaptive")}
+            className={`w-full text-left p-3.5 rounded-xl font-bold text-sm flex items-center gap-3 transition-colors ${
+              activeTab === "adaptive" ? "bg-primary text-white" : "bg-white border border-gray-150 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <BookOpen className="w-5 h-5" />
+            Adaptive Calibration
           </button>
         </aside>
 
@@ -813,6 +882,174 @@ const AdminPortal: React.FC = () => {
                   <h4 className="font-bold text-gray-900 text-sm">Completions CSV</h4>
                   <p className="text-xs text-gray-400">Starts vs completions and active mock statistics.</p>
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Adaptive Settings & Logs Panel */}
+          {activeTab === "adaptive" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-extrabold text-gray-900">Adaptive Test Settings & Audit Logs</h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Form to edit settings */}
+                <form onSubmit={handleUpdateAdaptiveSettings} className="bg-white p-6 border border-gray-150 rounded-3xl shadow-sm space-y-4 text-left">
+                  <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">Calibrate CAT Engine</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Questions</label>
+                      <input
+                        type="number"
+                        required
+                        value={totalQuestions}
+                        onChange={e => setTotalQuestions(Number(e.target.value))}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Time Limit (Seconds)</label>
+                      <input
+                        type="number"
+                        required
+                        value={timeLimitSeconds}
+                        onChange={e => setTimeLimitSeconds(Number(e.target.value))}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Initial Ability (0-1000)</label>
+                      <input
+                        type="number"
+                        required
+                        value={initialAbility}
+                        onChange={e => setInitialAbility(Number(e.target.value))}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Sensitivity Factor</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        required
+                        value={sensitivity}
+                        onChange={e => setSensitivity(Number(e.target.value))}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Min Difficulty Step</label>
+                      <input
+                        type="number"
+                        required
+                        value={minDiffChange}
+                        onChange={e => setMinDiffChange(Number(e.target.value))}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Max Difficulty Step</label>
+                      <input
+                        type="number"
+                        required
+                        value={maxDiffChange}
+                        onChange={e => setMaxDiffChange(Number(e.target.value))}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold text-gray-750 text-xs uppercase tracking-wide border-t border-gray-100 pt-3">Blueprint Distribution (Target counts)</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {Object.keys(blueprint).map(topic => (
+                        <div key={topic} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <span className="font-semibold text-slate-600 truncate mr-2">{topic}</span>
+                          <input
+                            type="number"
+                            value={blueprint[topic]}
+                            onChange={e => setBlueprint(prev => ({ ...prev, [topic]: Number(e.target.value) }))}
+                            className="w-12 bg-white border border-slate-200 rounded text-center font-bold focus:outline-none focus:border-primary p-0.5"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button type="submit" className="premium-btn w-full py-2.5 mt-2 font-bold text-xs uppercase tracking-wider">
+                    Save CAT Engine Configuration
+                  </button>
+                </form>
+
+                {/* Audit Logs panel */}
+                <div className="bg-white p-6 border border-gray-150 rounded-3xl shadow-sm space-y-4 text-left flex flex-col h-[650px] overflow-hidden">
+                  <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">Adaptive Test Session Auditor</h3>
+                  
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter Student Session ID..."
+                      value={inspectSessionId}
+                      onChange={e => setInspectSessionId(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-primary flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleFetchAdaptiveLogs}
+                      className="px-4 py-2 bg-gray-950 hover:bg-black text-white font-bold rounded-xl text-xs transition-colors shrink-0 shadow-sm"
+                    >
+                      Audit
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pr-1">
+                    {auditLogs === null ? (
+                      <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                        Enter a Session ID above to retrieve decision history.
+                      </div>
+                    ) : auditLogs.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                        No adaptive decision logs found for this session.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {auditLogs.map((log: any) => (
+                          <div key={log.question_number} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1.5">
+                            <div className="flex justify-between items-center border-b border-slate-200/55 pb-1">
+                              <span className="font-bold text-slate-800">Q#{log.question_number} — {log.topic_name || "General"}</span>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                log.is_correct === true ? "bg-green-50 text-success border border-green-200" :
+                                log.is_correct === false ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-slate-200 text-slate-600 border border-slate-300"
+                              }`}>
+                                {log.is_correct === true ? "Correct" : log.is_correct === false ? "Incorrect" : "Unanswered / Selected"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-slate-600">
+                              <div>Difficulty Target: <span className="font-bold text-slate-800">{log.question_difficulty}</span></div>
+                              <div>Time Taken: <span className="font-bold text-slate-800">{log.time_taken_seconds || 0}s</span></div>
+                            </div>
+                            <div className="text-slate-600 flex justify-between bg-white px-2 py-1 rounded border border-slate-150">
+                              <span>Ability Before: <strong className="text-slate-800">{log.ability_before}</strong></span>
+                              <span>→ After: <strong className="text-primary">{log.ability_after}</strong></span>
+                            </div>
+                            {log.selection_reason && (
+                              <div className="text-[10px] text-slate-400 italic mt-1 leading-normal">
+                                Selection Reason: {log.selection_reason}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -43,7 +43,51 @@ try:
         
         # Ensure default test users are Approved
         conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com', 'kumarsoniravi705@gmail.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
-        logger.info("Dynamic migrations completed successfully.")
+        
+        # System Settings Table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key VARCHAR(100) PRIMARY KEY,
+                value TEXT NOT NULL,
+                description VARCHAR(255),
+                updated_at TIMESTAMP
+            )
+        """))
+        
+        # Adaptive Logs Table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS adaptive_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                session_id VARCHAR(36) NOT NULL,
+                question_id VARCHAR(36) NOT NULL,
+                question_number INTEGER NOT NULL,
+                ability_before INTEGER NOT NULL,
+                ability_after INTEGER NOT NULL,
+                question_difficulty INTEGER NOT NULL,
+                selection_reason TEXT,
+                topic_name VARCHAR(255),
+                time_taken_seconds INTEGER,
+                is_correct BOOLEAN,
+                created_at TIMESTAMP
+            )
+        """))
+        
+    # Run test_sessions alters in separate blocks to avoid transaction rollback if columns exist
+    for col, ctype in [
+        ("ability_score", "INTEGER DEFAULT 500"),
+        ("ability_score_reading", "INTEGER DEFAULT 500"),
+        ("ability_score_math", "INTEGER DEFAULT 500"),
+        ("current_question_no", "INTEGER DEFAULT 1"),
+        ("questions_list", "TEXT"),
+        ("topic_counts", "TEXT")
+    ]:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE test_sessions ADD COLUMN {col} {ctype}"))
+        except Exception:
+            pass # Column already exists
+            
+    logger.info("Dynamic migrations completed successfully.")
 except Exception as e:
     logger.error(f"Error initializing database tables: {e}")
 
