@@ -95,7 +95,9 @@ export const api = {
     rejectUser: (userId: string, reason?: string, notes?: string) => apiFetch(`/admin/users/${userId}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason, notes }) }),
     suspendUser: (userId: string, notes?: string) => apiFetch(`/admin/users/${userId}/suspend`, { method: "POST", body: JSON.stringify({ notes }) }),
     reactivateUser: (userId: string, notes?: string) => apiFetch(`/admin/users/${userId}/reactivate`, { method: "POST", body: JSON.stringify({ notes }) }),
-    updateUserRole: (userId: string, role: string) => apiFetch(`/admin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) })
+    updateUserRole: (userId: string, role: string) => apiFetch(`/admin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+    getAdminSummary: () => apiFetch("/admin/users/summary"),
+    deleteUser: (userId: string) => apiFetch(`/admin/users/${userId}`, { method: "DELETE" })
   },
   counsellor: {
     students: () => apiFetch("/counsellor/students")

@@ -52,6 +52,27 @@ def verify_otp(data: OTPVerify, response: Response, request: Request, db: Sessio
         
     # Mark verified
     user.is_verified = True
+    
+    # Auto-approve students immediately
+    if user.role == "student":
+        user.approval_status = "Approved"
+        db.commit()
+        
+        # Send registration welcome email
+        EmailService.send_student_welcome_email(user)
+        
+        tokens = AuthService.generate_auth_tokens(user)
+        response.set_cookie(
+            key="refresh_token",
+            value=tokens["refresh_token"],
+            httponly=True,
+            max_age=7 * 24 * 3600,
+            samesite="lax",
+            secure=False
+        )
+        return tokens
+        
+    # Counsellors and Authors require manual approval
     user.approval_status = "Pending"
     db.commit()
     

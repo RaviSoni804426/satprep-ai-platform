@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { logout } from "../store/authSlice";
 import { RootState } from "../store";
 import { api } from "../services/api";
-import { LogOut, BookOpen, Users, HelpCircle, BarChart3, Database, FileUp, FileDown, PlusCircle, CheckCircle, Loader2, XCircle, Lock, Unlock, Eye, ShieldAlert } from "lucide-react";
+import { LogOut, BookOpen, Users, HelpCircle, BarChart3, Database, FileUp, FileDown, PlusCircle, CheckCircle, Loader2, XCircle, Lock, Unlock, Eye, ShieldAlert, Trash2 } from "lucide-react";
 
 const AdminPortal: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -26,6 +26,22 @@ const AdminPortal: React.FC = () => {
   const [showActionModal, setShowActionModal] = useState<"approve" | "reject" | "suspend" | "reactivate" | null>(null);
   const [actionNotes, setActionNotes] = useState("");
   const [actionReason, setActionReason] = useState("");
+  const [adminSummary, setAdminSummary] = useState<any>(null);
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to permanently delete this user account? This action cannot be undone.")) return;
+    
+    setLoading(true);
+    try {
+      await api.admin.deleteUser(userId);
+      alert("User deleted successfully!");
+      loadTabContent();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete user");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Questions tab state
   const [questionsList, setQuestionsList] = useState<any[]>([]);
@@ -54,6 +70,8 @@ const AdminPortal: React.FC = () => {
       if (activeTab === "users") {
         const data = await api.users.list(roleFilter || undefined, usersSearch || undefined, statusFilter || undefined);
         setUsersList(data.data || []);
+        const summaryData = await api.admin.getAdminSummary();
+        setAdminSummary(summaryData);
       } else if (activeTab === "questions") {
         const data = await api.admin.listQuestions();
         setQuestionsList(data || []);
@@ -330,6 +348,32 @@ const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Premium Dashboard Metrics Cards */}
+              {adminSummary && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="premium-card bg-white p-5 border border-gray-150 shadow-sm rounded-2xl">
+                    <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Pending Counsellors</span>
+                    <span className="text-2xl font-extrabold text-amber-700 mt-1 block">{adminSummary.pending_counsellors}</span>
+                  </div>
+                  <div className="premium-card bg-white p-5 border border-gray-150 shadow-sm rounded-2xl">
+                    <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Pending Authors</span>
+                    <span className="text-2xl font-extrabold text-amber-700 mt-1 block">{adminSummary.pending_authors}</span>
+                  </div>
+                  <div className="premium-card bg-white p-5 border border-gray-150 shadow-sm rounded-2xl">
+                    <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider block">Approved Users</span>
+                    <span className="text-2xl font-extrabold text-success mt-1 block">{adminSummary.approved_users}</span>
+                  </div>
+                  <div className="premium-card bg-white p-5 border border-gray-150 shadow-sm rounded-2xl">
+                    <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Rejected / Suspended</span>
+                    <span className="text-2xl font-extrabold text-rose-700 mt-1 block">{(adminSummary.rejected_users || 0) + (adminSummary.suspended_users || 0)}</span>
+                  </div>
+                  <div className="premium-card bg-white p-5 border border-gray-150 shadow-sm rounded-2xl">
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total Students</span>
+                    <span className="text-2xl font-extrabold text-primary mt-1 block">{adminSummary.total_students}</span>
+                  </div>
+                </div>
+              )}
+
               <div className="premium-card bg-white overflow-hidden border border-gray-150 shadow-sm rounded-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
@@ -433,6 +477,16 @@ const AdminPortal: React.FC = () => {
                                     <Unlock className="w-4 h-4" />
                                   </button>
                                 )}
+
+                                {user?.id !== u.id && (
+                                  <button
+                                    onClick={() => handleDeleteUser(u.id)}
+                                    className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                    title="Delete User"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -442,6 +496,121 @@ const AdminPortal: React.FC = () => {
                   </table>
                 </div>
               </div>
+
+              {/* Recent Registrations and Approval History Lists */}
+              {adminSummary && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  {/* Recent Registrations Panel */}
+                  <div className="premium-card bg-white p-6 border border-gray-150 shadow-sm rounded-2xl space-y-4">
+                    <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                      <Users className="w-5 h-5 text-primary" />
+                      <h3 className="font-bold text-gray-900 text-sm">Recent Registrations</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-2">User</th>
+                            <th className="px-4 py-2">Role</th>
+                            <th className="px-4 py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs">
+                          {adminSummary.recent_registrations?.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-4 text-center text-gray-400">
+                                No recent registrations.
+                              </td>
+                            </tr>
+                          ) : (
+                            adminSummary.recent_registrations?.map((r: any) => (
+                              <tr key={r.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-2">
+                                  <div className="font-semibold text-gray-800">{r.full_name || "—"}</div>
+                                  <div className="text-[10px] text-gray-500 font-mono">{r.email}</div>
+                                </td>
+                                <td className="px-4 py-2 capitalize font-medium text-gray-600">{r.role}</td>
+                                <td className="px-4 py-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${
+                                    r.approval_status === "Approved" ? "bg-green-50 text-success border-green-200" :
+                                    r.approval_status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                    r.approval_status === "Rejected" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                    "bg-slate-100 text-slate-700 border-slate-300"
+                                  }`}>
+                                    {r.approval_status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Approval History Panel */}
+                  <div className="premium-card bg-white p-6 border border-gray-150 shadow-sm rounded-2xl space-y-4">
+                    <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                      <CheckCircle className="w-5 h-5 text-success" />
+                      <h3 className="font-bold text-gray-900 text-sm">Approval History</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-2">User</th>
+                            <th className="px-4 py-2">Outcome</th>
+                            <th className="px-4 py-2">Processed By / Details</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs">
+                          {adminSummary.approval_history?.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-4 text-center text-gray-400">
+                                No history available.
+                              </td>
+                            </tr>
+                          ) : (
+                            adminSummary.approval_history?.map((h: any) => (
+                              <tr key={h.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-2">
+                                  <div className="font-semibold text-gray-800">{h.full_name || "—"}</div>
+                                  <div className="text-[10px] text-gray-500 font-mono">{h.email}</div>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${
+                                    h.approval_status === "Approved" ? "bg-green-50 text-success border-green-200" :
+                                    h.approval_status === "Rejected" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                    h.approval_status === "Suspended" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                    "bg-slate-100 text-slate-700 border-slate-300"
+                                  }`}>
+                                    {h.approval_status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-gray-600">
+                                  {h.approved_by_name && (
+                                    <div className="font-semibold">By: {h.approved_by_name}</div>
+                                  )}
+                                  {h.approval_notes && (
+                                    <div className="text-[10px] text-gray-500 italic truncate max-w-[150px]">
+                                      Note: "{h.approval_notes}"
+                                    </div>
+                                  )}
+                                  {h.rejection_reason && (
+                                    <div className="text-[10px] text-rose-600 font-medium truncate max-w-[150px]">
+                                      Reason: {h.rejection_reason}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

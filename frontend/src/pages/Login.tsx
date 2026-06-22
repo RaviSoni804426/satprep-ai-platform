@@ -327,7 +327,6 @@ const Login: React.FC = () => {
                   <option value="student">Student</option>
                   <option value="counsellor">Counsellor</option>
                   <option value="author">Content Author</option>
-                  <option value="admin">Administrator</option>
                 </select>
               </div>
 

@@ -159,18 +159,15 @@ class AuthService:
             pass_hash = get_password_hash("GoogleAuth123!SafeSecretPass")
             user = UserRepository.create_user(db, email, pass_hash, "student", full_name)
             user.is_verified = True
-            user.approval_status = "Pending"  # Google users must go through approval workflow
+            user.approval_status = "Approved"  # Google students are auto-approved
             db.commit()
             
             # Log registration event
             EventRepository.log_event(db, "user.registered", user.id, properties={"role": "student", "method": "google"})
             
-            # Send notification emails to admin & user
-            from app.services.email_service import EmailService
-            EmailService.send_admin_approval_request_email(user)
-            EmailService.send_user_pending_email(user)
-            
-            return user, "APPROVAL_PENDING"
+            # Log login event
+            EventRepository.log_event(db, "user.login", user.id, properties={"method": "google"})
+            return user, "SUCCESS"
         
         # Check approval statuses
         if not user.is_active or user.approval_status == "Suspended":

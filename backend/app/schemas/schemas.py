@@ -5,7 +5,7 @@ from datetime import datetime, date
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
-    role: str = Field(..., pattern="^(student|counsellor|author|admin)$")
+    role: str = Field(..., pattern="^(student|counsellor|author)$")
     full_name: Optional[str] = None
 
 class UserLogin(BaseModel):

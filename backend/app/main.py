@@ -42,7 +42,7 @@ try:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_user_agent VARCHAR(500)"))
         
         # Ensure default test users are Approved
-        conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
+        conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com', 'kumarsoniravi705@gmail.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
         logger.info("Dynamic migrations completed successfully.")
 except Exception as e:
     logger.error(f"Error initializing database tables: {e}")

@@ -26,13 +26,28 @@ def seed():
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_user_agent VARCHAR(500)"))
         
         # Ensure default test users are Approved
-        conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
+        conn.execute(text("UPDATE users SET approval_status = 'Approved' WHERE email IN ('admin@satprepai.com', 'counsellor@satprepai.com', 'student@satprepai.com', 'kumarsoniravi705@gmail.com') AND (approval_status IS NULL OR approval_status = 'Pending')"))
         conn.commit()
 
     print("Seeding database...")
     db = SessionLocal()
     
     # 1. Create Default Users if they don't exist
+    super_admin = db.query(User).filter(User.email == "kumarsoniravi705@gmail.com").first()
+    if not super_admin:
+        super_admin = User(
+            email="kumarsoniravi705@gmail.com",
+            password_hash=get_password_hash("Ravi@123"),
+            role="SUPER_ADMIN",
+            full_name="Ravi",
+            is_verified=True,
+            approval_status="Approved"
+        )
+        db.add(super_admin)
+        db.commit()
+        db.refresh(super_admin)
+        print("Created default Super Admin user Ravi.")
+        
     admin = db.query(User).filter(User.email == "admin@satprepai.com").first()
     if not admin:
         admin = User(

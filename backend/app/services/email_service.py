@@ -91,6 +91,10 @@ class EmailService:
     @staticmethod
     def send_admin_approval_request_email(user: User, request=None):
         """Sends a user registration approval request email to the administrator."""
+        if user.role == "student":
+            logger.info("Skipping admin approval request email for student.")
+            return
+            
         admin_email = settings.ADMIN_NOTIFICATION_EMAIL
         subject = "New User Registration Awaiting Approval – SATPrep AI"
         
@@ -278,6 +282,38 @@ class EmailService:
                     </div>
                     
                     <p>If you have any questions or feel this decision was made in error, please feel free to reach out to our support team.</p>
+                    <p style="margin-top: 2rem; font-size: 0.9rem; color: #64748b;">Best regards,<br>The SATPrep AI Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        EmailService._send_email(user.email, subject, text_body, html_body)
+
+    @staticmethod
+    def send_student_welcome_email(user: User):
+        """Sends a normal registration confirmation / welcome email to the student."""
+        subject = "Welcome to SATPrep AI – Registration Successful"
+        login_url = f"{settings.FRONTEND_URL}/login"
+        
+        text_body = (
+            f"Hello {user.full_name or user.email},\n\n"
+            f"Your registration on SATPrep AI was successful!\n\n"
+            f"You can log in to your dashboard immediately and start attempting digital mock SAT tests:\n"
+            f"Login URL: {login_url}\n\n"
+            f"The SATPrep AI Team"
+        )
+        
+        html_body = f"""
+        <html>
+            <body style="font-family: sans-serif; background-color: #f8fafc; padding: 2rem; color: #1e293b;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+                    <h2 style="color: #2563eb; margin-top: 0;">Welcome to SATPrep AI!</h2>
+                    <p>Dear {user.full_name or 'Student'},</p>
+                    <p>Your registration on <strong>SATPrep AI</strong> was successful!</p>
+                    <p>Your student account is immediately active. You can log in and start attempting digital SAT mock tests, review analytical reports, and receive AI-driven recommendations.</p>
+                    <div style="text-align: center; margin: 2rem 0;">
+                        <a href="{login_url}" style="display: inline-block; background-color: #2563eb; color: white; text-decoration: none; padding: 0.75rem 1.75rem; border-radius: 0.5rem; font-weight: bold;">Get Started Now</a>
+                    </div>
                     <p style="margin-top: 2rem; font-size: 0.9rem; color: #64748b;">Best regards,<br>The SATPrep AI Team</p>
                 </div>
             </body>

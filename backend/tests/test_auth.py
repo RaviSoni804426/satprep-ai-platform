@@ -21,19 +21,19 @@ def test_register_invalid_role(client: TestClient):
     assert response.status_code == 422
 
 def test_registration_approval_flow(client: TestClient):
-    # 1. Register student -> returns OTP_REQUIRED (401)
+    # 1. Register counsellor -> returns OTP_REQUIRED (401)
     response = client.post("/v1/auth/register", json={
-        "email": "new_student@example.com",
+        "email": "new_counsellor@example.com",
         "password": "SecurePassword123!",
-        "role": "student",
-        "full_name": "New Student"
+        "role": "counsellor",
+        "full_name": "New Counsellor"
     })
     assert response.status_code == 401
     assert response.json()["detail"] == "OTP_REQUIRED"
     
     # 2. Verify OTP (using bypass code 123456) -> returns APPROVAL_PENDING (403)
     verify_resp = client.post("/v1/auth/otp/verify", json={
-        "email": "new_student@example.com",
+        "email": "new_counsellor@example.com",
         "otp": "123456"
     })
     assert verify_resp.status_code == 403
@@ -41,7 +41,7 @@ def test_registration_approval_flow(client: TestClient):
     
     # 3. Direct login -> fails with APPROVAL_PENDING (403)
     login_fail = client.post("/v1/auth/login", json={
-        "email": "new_student@example.com",
+        "email": "new_counsellor@example.com",
         "password": "SecurePassword123!"
     })
     assert login_fail.status_code == 403
@@ -59,7 +59,7 @@ def test_registration_approval_flow(client: TestClient):
     users_resp = client.get("/v1/users", headers={"Authorization": f"Bearer {admin_token}"})
     assert users_resp.status_code == 200
     users = users_resp.json()["data"]
-    new_user = next(u for u in users if u["email"] == "new_student@example.com")
+    new_user = next(u for u in users if u["email"] == "new_counsellor@example.com")
     user_id = new_user["id"]
     assert new_user["approval_status"] == "Pending"
     
@@ -73,7 +73,34 @@ def test_registration_approval_flow(client: TestClient):
     
     # 6. Login now succeeds!
     login_success = client.post("/v1/auth/login", json={
-        "email": "new_student@example.com",
+        "email": "new_counsellor@example.com",
+        "password": "SecurePassword123!"
+    })
+    assert login_success.status_code == 200
+    assert "access_token" in login_success.json()
+
+def test_student_auto_approval_flow(client: TestClient):
+    # 1. Register student -> returns OTP_REQUIRED (401)
+    response = client.post("/v1/auth/register", json={
+        "email": "new_student_auto@example.com",
+        "password": "SecurePassword123!",
+        "role": "student",
+        "full_name": "New Student Auto"
+    })
+    assert response.status_code == 401
+    assert response.json()["detail"] == "OTP_REQUIRED"
+    
+    # 2. Verify OTP (using bypass code 123456) -> returns access token immediately (200 OK)
+    verify_resp = client.post("/v1/auth/otp/verify", json={
+        "email": "new_student_auto@example.com",
+        "otp": "123456"
+    })
+    assert verify_resp.status_code == 200
+    assert "access_token" in verify_resp.json()
+    
+    # 3. Direct login -> succeeds immediately (200 OK) without admin approval
+    login_success = client.post("/v1/auth/login", json={
+        "email": "new_student_auto@example.com",
         "password": "SecurePassword123!"
     })
     assert login_success.status_code == 200

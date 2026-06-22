@@ -313,3 +313,86 @@ def update_user_role(
     db.commit()
     
     return {"message": "User role updated successfully", "role": user.role}
+
+@router.get("/admin/users/summary")
+def get_admin_summary(
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    pending_counsellors = db.query(User).filter(User.role == "counsellor", User.approval_status == "Pending").count()
+    pending_authors = db.query(User).filter(User.role == "author", User.approval_status == "Pending").count()
+    
+    approved_users = db.query(User).filter(User.approval_status == "Approved").count()
+    rejected_users = db.query(User).filter(User.approval_status == "Rejected").count()
+    suspended_users = db.query(User).filter(User.approval_status == "Suspended").count()
+    
+    total_students = db.query(User).filter(User.role == "student").count()
+    total_counsellors = db.query(User).filter(User.role == "counsellor").count()
+    total_authors = db.query(User).filter(User.role == "author").count()
+    
+    # Recent registrations (last 10)
+    recent_users = db.query(User).order_by(User.created_at.desc()).limit(10).all()
+    recent_registrations = []
+    for u in recent_users:
+        recent_registrations.append({
+            "id": u.id,
+            "email": u.email,
+            "role": u.role,
+            "full_name": u.full_name,
+            "approval_status": u.approval_status,
+            "created_at": u.created_at.isoformat() if u.created_at else None
+        })
+        
+    # Approval history (last 10 processed users)
+    history_users = db.query(User).filter(User.approval_status != "Pending", User.approval_date.isnot(None))\
+                                  .order_by(User.approval_date.desc()).limit(10).all()
+    approval_history = []
+    for u in history_users:
+        approved_by_info = None
+        if u.approved_by:
+            approver = db.query(User).filter(User.id == u.approved_by).first()
+            if approver:
+                approved_by_info = approver.full_name or approver.email
+                
+        approval_history.append({
+            "id": u.id,
+            "email": u.email,
+            "role": u.role,
+            "full_name": u.full_name,
+            "approval_status": u.approval_status,
+            "approved_by_name": approved_by_info,
+            "approval_date": u.approval_date.isoformat() if u.approval_date else None,
+            "approval_notes": u.approval_notes,
+            "rejection_reason": u.rejection_reason
+        })
+        
+    return {
+        "pending_counsellors": pending_counsellors,
+        "pending_authors": pending_authors,
+        "approved_users": approved_users,
+        "rejected_users": rejected_users,
+        "suspended_users": suspended_users,
+        "total_students": total_students,
+        "total_counsellors": total_counsellors,
+        "total_authors": total_authors,
+        "recent_registrations": recent_registrations,
+        "approval_history": approval_history
+    }
+
+@router.delete("/admin/users/{user_id}")
+def delete_user(
+    user_id: str,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+    db.delete(user)
+    db.commit()
+    
+    return {"message": "User deleted successfully", "user_id": user_id}
